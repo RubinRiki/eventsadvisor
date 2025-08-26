@@ -1,0 +1,9 @@
+﻿# Client (GUI)
+PySide6
+
+# Server (API)
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+httpx
