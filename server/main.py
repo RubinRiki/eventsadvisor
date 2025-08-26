@@ -1,8 +1,8 @@
 from fastapi import FastAPI
-from server.api import books          # ← הוספה
+from server.api import events
 
-app = FastAPI(title="BookAdvisor API")
-app.include_router(books.router)       # ← הוספה
+app = FastAPI(title="EventAdvisor API")
+app.include_router(events.router)
 
 @app.get("/health")
 def health():
