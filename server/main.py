@@ -1,9 +1,14 @@
 from fastapi import FastAPI
-from server.api import events
+from server.config import settings
+from server.api.health import router as health_router
+from server.api.auth import router as auth_router
+from server.api.events_public import router as events_public_router  
+from server.api.orders import router as orders_router 
 
-app = FastAPI(title="EventAdvisor API")
-app.include_router(events.router)
+app = FastAPI(title=settings.APP_NAME)
 
-@app.get("/health")
-def health():
-    return {"ok": True}
+app.include_router(health_router)
+app.include_router(auth_router)
+app.include_router(events_public_router)  
+app.include_router(orders_router)  
+
