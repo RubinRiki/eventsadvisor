@@ -1,126 +1,75 @@
-# 🎯 EventsAdvisor – צד שרת
+# נייצר קובץ README.md עם התוכן שסיכמנו
 
-## 📂 מבנה התיקיות והקבצים
+readme_content = """# EventAdvisor – פרויקט סיום בהנדסת מערכות חלונות
 
-### `server/main.py`
-**נקודת הכניסה לשרת (FastAPI)**  
-- כאן נוצרת האפליקציה עצמה.  
-- כאן אנחנו "מחברים" את כל ה־Routers (כל קבוצות הנתיבים / API).  
-- כל בקשה מהלקוח מתחילה כאן ומנותבת ל־router המתאים.
+## 🎯 תיאור כללי
+מערכת לניהול וחיפוש אירועים, עם שמירת נתונים בענן וחיבור לשירות חיצוני.  
+המערכת כוללת:
+- **שרת אפליקציה (FastAPI)**  
+- **בסיס נתונים בענן (Somee – SQL Server)**  
+- **Gateway חיצוני (Ticketmaster / דמו)**  
+- **אימות והרשאות עם JWT**  
+- **ממשק משתמש (PySide6 + QtCharts)**
 
----
-
-### `server/config.py`
-**קובץ הגדרות ותצורה**  
-- קורא משתנים מקובץ `.env` (למשל שם האפליקציה, סביבה dev/prod, המפתח הסודי ל־JWT).  
-- מאפשר להחליף בקלות ערכים בלי לשנות קוד.
+המערכת תומכת בחיפוש אירועים, הצגת פרטים, ניתוח נתונים בגרפים, הזמנות משתמשים, ושילוב נתונים ממקור חיצוני.
 
 ---
 
-### 📂 `server/core/`  
-**לוגיקה כללית שחוזרת על עצמה**  
-- `security.py` – פונקציות להצפנת סיסמאות ולבדיקתן (Hash עם bcrypt).  
-- `jwt.py` – יצירת טוקן JWT לאחר Login + בדיקת תקפות הטוקן.  
-- `deps.py` – פונקציה שמזהה את המשתמש מתוך הטוקן, ומחזירה אותו לכל נתיב שדורש משתמש מחובר.
+## ✅ מה עובד היום
+- **ניהול משתמשים ואימות (Auth)**  
+  - רישום משתמש חדש (`/auth/register`)  
+  - התחברות (`/auth/login`) → קבלת `access_token`  
+  - שליפת משתמש נוכחי (`/auth/me`) עם Bearer Token  
+
+- **אירועים – DB פנימי (Somee)**  
+  - `GET /events/search` → חיפוש עם סינון לפי טקסט, קטגוריה, תאריכים, ופאג’ינציה.  
+  - `GET /events/{id}` → שליפת אירוע בודד.  
+  - `GET /events/analytics/summary` → אנליטיקות לפי חודש/קטגוריה (מוגן בטוקן).  
+  - טבלת Events עודכנה: שדות `Category`, `Price DECIMAL`, אינדקסים על `Date` ו־`Category`.
+
+- **אירועים – Gateway חיצוני**  
+  - `GET /tm/events/search` → תוצאות דמו/חיצוני (לדוגמה: Imagine Dragons).  
+  - משמש להדגמת שילוב נתונים חיצוניים (דרישת Gateway).
+
+- **Postman** – נבדקו תסריטים:  
+  - Register/Login/Me  
+  - Events: search / get  
+  - Analytics (עם Bearer)  
+  - Gateway search  
+
+- **DB** – מוזן בנתוני דמו (5 אירועים: Conference, Music, Festival, Meetup, Workshop) לצורך בדיקות.
 
 ---
 
-### 📂 `server/models/`  
-**מודלים (Schemas) – איך הנתונים נראים**  
-כל המודלים מוגדרים בעזרת Pydantic – מוודאים את סוגי השדות ומגדירים את הפלט/קלט של ה־API.  
-
-- `user.py` – מודלים של משתמשים:  
-  - `User` – משתמש מלא כולל hashed_password (לא יוצא החוצה).  
-  - `UserPublic` – המידע שמוחזר ללקוח (בלי סיסמה).  
-  - `UserCreate` – גוף בקשה ל־Register.  
-  - `UserLogin` – גוף בקשה ל־Login.  
-  - `Token` – המידע שמוחזר אחרי Login (access_token).  
-
-- `event.py` – מודלים של אירועים:  
-  - `Event` – איך אירוע נראה (id, שם, מיקום, תאריך, מחיר).  
-  - `EventSearchParams` – פרמטרים של חיפוש (מחרוזת חיפוש, קטגוריה, טווח תאריכים).  
-  - `EventSearchResult` – תוצאה של חיפוש (רשימת אירועים, עמוד, כמות כוללת).  
-  - `AnalyticsSummary` – נתונים מוכנים לגרפים (לפי קטגוריה ולפי חודש).  
-
-- `order.py` – מודלים של הזמנות/רישום לאירועים:  
-  - `RegistrationCreate` – גוף בקשה ליצירת הזמנה (event_id + הערות).  
-  - `Registration` – איך נראית הזמנה שנשמרה (id, user_id, event_id, תאריך יצירה).  
+## 📐 ארכיטקטורה
+- **FastAPI** – שרת REST עם ארגון לפי תבנית MVC/CQRS.  
+- **Repositories** – גישה ל־DB עם `pyodbc`.  
+- **Somee (SQL Server)** – אחסון טבלאות Users, Events, Orders.  
+- **Gateway** – מודול נפרד לשירות חיצוני תחת prefix `/tm`.  
+- **PySide6 + QtCharts** – תצוגת Desktop (חיפוש, פרטים, גרפים).  
+- **JWT** – מנגנון הרשאות ואימות.  
+- **CORS** פתוח לפיתוח מקומי.  
 
 ---
 
-### 📂 `server/repositories/`  
-**Repositories – שכבת הגישה לנתונים**  
-כעת הכול In-Memory (בזיכרון), לכן בכל ריסטרט הנתונים מתאפסים. בעתיד יוחלפו במימוש מול DB אמיתי.  
+## 🗄️ מבנה טבלאות עיקרי
+### Users
+- `Id` (PK, Identity)  
+- `Username`, `Email` (Unique)  
+- `password_hash`, `role`, `is_active`, `CreatedAt`
 
-- `users_repo.py` – ניהול משתמשים:  
-  - `create` – יצירת משתמש חדש עם סיסמה מוצפנת.  
-  - `get_by_email`, `get_by_id` – שליפה של משתמש לפי אימייל או מזהה.  
-
-- `events_repo.py` – ניהול אירועים:  
-  - מכיל seed של אירועים דמיוניים (Tech Summit, AI Meetup וכו’).  
-  - `search` – חיפוש אירועים לפי טקסט, קטגוריה, תאריכים.  
-  - `get` – שליפת אירוע לפי מזהה.  
-  - `analytics_summary` – מחזיר ספירות לפי קטגוריה ולפי חודש.  
-
-- `orders_repo.py` – ניהול הזמנות (Create):  
-  - `create` – יצירת הזמנה חדשה (קישור משתמש לאירוע).  
-  - `get` – שליפת הזמנה לפי מזהה.  
-  - `list_for_user` – כל ההזמנות של משתמש מסוים.  
+### Events
+- `Id` (PK, Identity)  
+- `Title`, `Category`, `Date`, `Venue`, `City`, `Country`, `Url`  
+- `Price DECIMAL(10,2)`, `CreatedAt`  
+- אינדקסים: `IX_Events_Category`, `IX_Events_Date`  
+- קשר זר: `Orders.EventId → Events.Id`
 
 ---
 
-### 📂 `server/api/`  
-**Routers – הנתיבים שהלקוח ניגש אליהם ב־HTTP**  
-כאן מגדירים את כל נקודות ה־API.  
-
-- **`health.py`**  
-  - `GET /health` → בדיקת תקינות בסיסית שהשרת חי.  
-
-- **`auth.py`** (ניהול משתמשים ואוטנטיקציה)  
-  - `POST /auth/register` → רישום משתמש חדש.  
-  - `POST /auth/login` → התחברות וקבלת access_token.  
-  - `GET /auth/me` → החזרת פרטי המשתמש הנוכחי לפי הטוקן.  
-
-- **`events_public.py`** (ניהול אירועים)  
-  - `GET /events/search` → חיפוש אירועים (כולל פרמטרים: q, קטגוריה, תאריכים, עמוד, limit).  
-  - `GET /events/{id}` → שליפת אירוע לפי מזהה.  
-  - `GET /events/analytics/summary` → החזרת סיכום אנליטי (לגרפים).  
-
-- **`orders.py`** (ניהול הזמנות – פעולה שמשנה מצב, Create)  
-  - `POST /orders` → יצירת הזמנה חדשה (משתמש חייב להיות מחובר).  
-  - `GET /orders/{reg_id}` → שליפת הזמנה לפי מזהה (שייך רק למשתמש).  
-  - `GET /orders` → כל ההזמנות של המשתמש המחובר.  
-
----
-
-## ✅ מה עובד כבר
-- Healthcheck (`/health`).  
-- זרימת Auth מלאה: Register → Login → Me.  
-- חיפוש אירועים (`/events/search`).  
-- פירוט אירוע (`/events/{id}`).  
-- אנליטיקות (`/events/analytics/summary`).  
-- הזמנות: יצירה (`/orders`), שליפה לפי מזהה, רשימת כל ההזמנות שלי.  
-
-נבדק גם ב־Swagger וגם ב־PowerShell.  
-
----
-
-## ⏳ מה עוד לא עשינו
-- חיבור למסד נתונים אמיתי (somee). כרגע הכול In-Memory.  
-- חיבור ל־Gateway חיצוני.  
-- אינטגרציה עם RAG/Ollama (Docker, AI agent).  
-- חיבור מלא לצד הלקוח (כרגע רק בדיקות ידניות ב־Swagger/PS).  
-
----
-
-## 🔑 הערות חשובות
-- כל פעם שהשרת מופעל מחדש – הנתונים מתאפסים.  
-  → חייבים לבצע Register → Login מחדש כדי לקבל טוקן חדש.  
-  → כל ההזמנות נמחקות ומתחילים מחדש.  
-
-- המבנה בנוי בשכבות (Models / Repositories / API).  
-  → כשנחבר DB אמיתי, נחליף רק את המימוש של ה־Repository – בלי לשנות את ה־API.  
-
-- הדרישות שעמדנו בהן:  
-  - חיפוש (3.1), פירוט (3.2), גרפים (3.3), אוטנטיקציה, ו־Create (3.5).  
-  - סעיפים מתקדמים (3.4 – AI, חיבור ל־DB אמיתי) עוד לא מומשו.  
+## 🚀 איך להריץ
+1. התקנת סביבת פיתוח:
+   ```bash
+   python -m venv venv
+   source venv/Scripts/activate  # Windows
+   pip install -r requirements.txt

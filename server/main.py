@@ -1,44 +1,50 @@
+# server/main.py
 from fastapi import FastAPI
-<<<<<<< HEAD
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv  # NEW
-import os                      # NEW
-from server.api import events
+from dotenv import load_dotenv
+import os
 
-# 1) טוען .env (כדי ש-TM_API_KEY ייקלט)
+# ראוטרים
+from server.api import auth, orders, events_public, events  # events_public = DB, events = gateway
+
+# 1) טוען משתני סביבה (.env)
 load_dotenv()
 
 app = FastAPI(title="EventAdvisor API")
 
-# 2) CORS – אפשרו ל-GUI מקומי לגשת
+# 2) CORS (אפשר לצמצם origins בהמשך)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # אפשר לצמצם בהמשך
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 3) רישום ראוטים
-app.include_router(events.router)
+# 3) רישום ראוטרים (ללא חפיפות!)
 
+# ✅ API של ה־DB (טבלת Events ב-Somee)
+# שימי לב: אם בתוך events_public.py כבר מוגדר prefix="/events",
+# אין צורך להוסיף כאן prefix. השורה הבאה משאירה אותו כפי שהוא.
+app.include_router(events_public.router)
+
+# ✅ Auth / Orders
+app.include_router(auth.router)    # /auth/*
+app.include_router(orders.router)  # /orders/*
+
+# ✅ Gateway (Ticketmaster/demo) תחת prefix מובחן
+# אם בתוך events.py ה־router מוגדר עם prefix="/events",
+# אז כאן מספיק prefix="/tm" והתוצאה תהיה /tm/events/*
+app.include_router(events.router, prefix="/tm", tags=["events-gateway"])
+
+# ❌ אל תוסיפי כאן app.include_router(events.router) ללא prefix,
+# אחרת ה-gateway ייתפס גם על /events/* ויגנוב נתיבים מה-DB.
+
+# 4) Healthcheck
 @app.get("/health")
 def health():
-    # עוזר לאבחן אם המפתח נטען
-    has_key = bool(os.getenv("TM_API_KEY"))
-    return {"ok": True, "tm_api_key_loaded": has_key}
-=======
-from server.config import settings
-from server.api.health import router as health_router
-from server.api.auth import router as auth_router
-from server.api.events_public import router as events_public_router  
-from server.api.orders import router as orders_router 
-
-app = FastAPI(title=settings.APP_NAME)
-
-app.include_router(health_router)
-app.include_router(auth_router)
-app.include_router(events_public_router)  
-app.include_router(orders_router)  
-
->>>>>>> 6aaa2ca1221d517f3a7f9443f331fbc47a567031
+    return {
+        "ok": True,
+        "tm_api_key_loaded": bool(os.getenv("TM_API_KEY")),
+        "env": os.getenv("ENV", "local")
+    }
