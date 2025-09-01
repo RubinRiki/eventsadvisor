@@ -7,3 +7,12 @@ uvicorn[standard]
 pydantic
 python-dotenv
 httpx
+pydantic-settings==2.4.0
+passlib[bcrypt]==1.7.4
+PyJWT==2.9.0
+email-validator==1.2.0
+
+
+
+
+
