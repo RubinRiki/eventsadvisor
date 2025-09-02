@@ -73,3 +73,31 @@ readme_content = """# EventAdvisor – פרויקט סיום בהנדסת מער
    python -m venv venv
    source venv/Scripts/activate  # Windows
    pip install -r requirements.txt
+
+   בדיקות מהירות (Postman)
+
+Login:
+POST /auth/login → שמירת טוקן ל־{{token}}
+
+Search DB:
+GET /events/search?q=tel&category=Conference&page=1&limit=5
+
+Get Event:
+GET /events/1
+
+Analytics:
+GET /events/analytics/summary (Bearer)
+
+Gateway:
+GET /tm/events/search?q=tel
+
+📌 מה עוד מתוכנן
+
+Orders: יצירת הזמנות (POST /orders), הצגת הזמנות משתמש (GET /orders/my), וסטטיסטיקות לאדמין.
+
+CRUD לאירועים (Admin): הוספה, עדכון, מחיקה עם הרשאת role.
+
+סוכן AI (RAG): חיבור ל־Ollama Docker והוספת /ai/ask.
+
+UI (PySide6): השלמת מסכים – חיפוש עם Toggle “כולל חיצוני”, פרטי אירוע, גרפים, והזמנות.
+"""
