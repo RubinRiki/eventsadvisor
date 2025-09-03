@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     OLLAMA_URL: str = "http://localhost:11434"
     
     TM_API_KEY: str | None = Field(default=None, alias="TM_API_KEY")
+    
+    # AI / Ollama
+    OLLAMA_URL = "http://127.0.0.1:11434"  # אם אין Ollama, תשאירי ככה
+    AI_MODEL = "llama3.1"                  # או כל מודל שקיים אצלך ב-Ollama
+    AI_TIMEOUT = 15                        # שניות
+
 
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

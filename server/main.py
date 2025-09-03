@@ -6,6 +6,7 @@ import os
 
 # ראוטרים
 from server.api import auth, orders, events_public, events  # events_public = DB, events = gateway
+from server.api import ai as ai_router
 
 # 1) טוען משתני סביבה (.env)
 load_dotenv()
@@ -31,6 +32,8 @@ app.include_router(events_public.router)
 # ✅ Auth / Orders
 app.include_router(auth.router)    # /auth/*
 app.include_router(orders.router)  # /orders/*
+app.include_router(ai_router.router)
+
 
 # ✅ Gateway (Ticketmaster/demo) תחת prefix מובחן
 # אם בתוך events.py ה־router מוגדר עם prefix="/events",
