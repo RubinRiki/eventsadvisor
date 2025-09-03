@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     ENV: str = "development"
     PORT: int = 8000
 
-    DB_URL: str = להעתיק מהENV
+    DB_URL: str = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=eventsdb_hadas.mssql.somee.com;DATABASE=eventsdb_hadas;UID=HDONAT_SQLLogin_1;PWD=udpqv6uev6;Encrypt=no;TrustServerCertificate=yes;"
     JWT_SECRET: str = "changeme"
     JWT_ALG: str = "HS256"
 

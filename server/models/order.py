@@ -1,14 +1,18 @@
-from pydantic import BaseModel
-from typing import Optional
+# server/models/order.py
+from pydantic import BaseModel, conint
+from datetime import datetime
+
+from pydantic import BaseModel, Field, conint
 from datetime import datetime
 
 class RegistrationCreate(BaseModel):
-    event_id: str
-    notes: Optional[str] = None
+    event_id: int
+    quantity: int = Field(..., gt=0)  # כמות חייבת להיות > 0
 
 class Registration(BaseModel):
-    id: str
-    user_id: str
-    event_id: str
-    notes: Optional[str] = None
+    id: int
+    user_id: int
+    event_id: int
+    quantity: int
+    total_price: float
     created_at: datetime
