@@ -1,7 +1,7 @@
 import time
 import jwt
 from typing import Dict
-from server.config import settings
+from server.core.config import settings
 
 ALG = settings.JWT_ALG
 

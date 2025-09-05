@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 import pyodbc
 from server.models.user import User, UserCreate
-from server.config import settings
+from server.core.config import settings
 
 # ---------- Contract ----------
 class UsersRepository(ABC):

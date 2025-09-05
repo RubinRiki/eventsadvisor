@@ -1,157 +1,147 @@
-# server/repositories/events_repo.py
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from typing import Optional
-import pyodbc
-from server.config import settings
+from typing import Optional, List, Tuple
+from datetime import date, datetime
+from sqlalchemy.orm import Session
+from sqlalchemy import func, and_, or_
+from server.models.db_models import EventDB
 from server.models.event import (
-    Event, EventSearchParams, EventSearchResult,
-    AnalyticsSummary, AnalyticsBucket
+    EventPublic, EventCreate, EventUpdate,
+    EventSearchParams, EventSearchResult, EventStatus
 )
+from server.models.user import User
 
-# ---------- DB helper ----------
-def _conn():
-    # Example:
-    # "DRIVER={ODBC Driver 18 for SQL Server};SERVER=eventsdb_hadas.mssql.somee.com;DATABASE=eventsdb_hadas;UID=...;PWD=...;Encrypt=no"
-    return pyodbc.connect(settings.DB_URL, autocommit=True)
-
-# ---------- Contract ----------
-class EventsRepository(ABC):
-    @abstractmethod
-    def search(self, params: EventSearchParams) -> EventSearchResult: ...
-    @abstractmethod
-    def get(self, event_id: str) -> Optional[Event]: ...
-    @abstractmethod
-    def analytics_summary(self) -> AnalyticsSummary: ...
-
-# ---------- SQL implementation ----------
-class SqlEventsRepository(EventsRepository):
-    def search(self, params: EventSearchParams) -> EventSearchResult:
-        where = []
-        args = []
-
-        # free text: Title/Venue/City
-        if params.q:
-            like = f"%{params.q.strip()}%"
-            where.append("(Title LIKE ? OR ISNULL(Venue,'') LIKE ? OR ISNULL(City,'') LIKE ?)")
-            args += [like, like, like]
-
-        # exact category
-        if params.category:
-            where.append("Category = ?")
-            args.append(params.category.strip())
-
-        # date range
-        if params.from_date:
-            where.append("Date >= ?")
-            args.append(params.from_date)
-        if params.to_date:
-            where.append("Date <= ?")
-            args.append(params.to_date)
-
-        # the Pydantic model Event requires event_date (not Optional) → exclude NULL dates
-        where.append("Date IS NOT NULL")
-
-        where_sql = (" WHERE " + " AND ".join(where)) if where else ""
-        limit = max(1, params.limit)
-        page = max(1, params.page)
-        offset = (page - 1) * limit
-
-        with _conn() as conn:
-            cur = conn.cursor()
-
-            # total count
-            cur.execute(f"SELECT COUNT(*) FROM dbo.Events{where_sql}", args)
-            total = cur.fetchone()[0]
-
-            # page query (SQL Server 2012+)
-            cur.execute(
-                f"""
-                SELECT Id, Title, Category, Date,
-                       ISNULL(City,''), ISNULL(Venue,''), ISNULL(Country,''), Price
-                FROM dbo.Events
-                {where_sql}
-                ORDER BY Id DESC
-                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
-                """,
-                (*args, offset, limit)
-            )
-            rows = cur.fetchall()
-
-        items: list[Event] = []
-        for r in rows:
-            # r: (Id, Title, Category, Date, City, Venue, Country, Price)
-            city, venue, country = r[4], r[5], r[6]
-            location = ", ".join([v for v in [venue, city, country] if v])
-            event_date = r[3].date()  # not None, we filtered Date IS NOT NULL
-
-            items.append(Event(
-                id=str(r[0]),
-                title=r[1],
-                category=r[2] or "General",
-                event_date=event_date,
-                location=location,
-                price=float(r[7]) if r[7] is not None else None,
-            ))
-
-        pages = (total + limit - 1) // limit
-        return EventSearchResult(items=items, total=total, page=page, pages=pages)
-
-    def get(self, event_id: str) -> Optional[Event]:
-        with _conn() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                """
-                SELECT Id, Title, Category, Date,
-                       ISNULL(City,''), ISNULL(Venue,''), ISNULL(Country,''), Price
-                FROM dbo.Events
-                WHERE Id = ? AND Date IS NOT NULL
-                """,
-                (event_id,)
-            )
-            r = cur.fetchone()
-
-        if not r:
-            return None
-
-        city, venue, country = r[4], r[5], r[6]
-        location = ", ".join([v for v in [venue, city, country] if v])
-        event_date = r[3].date()  # filtered non-null
-
-        return Event(
-            id=str(r[0]),
-            title=r[1],
-            category=r[2] or "General",
-            event_date=event_date,
-            location=location,
-            price=float(r[7]) if r[7] is not None else None,
+class EventsRepo:
+    def _to_public(self, e: EventDB) -> EventPublic:
+        return EventPublic(
+            id=e.Id,
+            title=e.Title,
+            category=e.Category,
+            venue=e.Venue,
+            city=e.City,
+            country=e.Country,
+            price=float(e.Price) if e.Price is not None else None,
+            description=e.description,
+            image_url=e.image_url,
+            capacity=e.capacity,
+            starts_at=e.starts_at,
+            ends_at=e.ends_at,
+            status=e.status,
+            owner_id=getattr(e, "OwnerId", None) if hasattr(e, "OwnerId") else None,
+            created_at=e.CreatedAt,
         )
 
-    def analytics_summary(self) -> AnalyticsSummary:
-        with _conn() as conn:
-            cur = conn.cursor()
-            # by month (YYYY-MM) from Date, ignoring NULLs
-            cur.execute("""
-                SELECT CONVERT(char(7), Date, 120) AS ym, COUNT(*)
-                FROM dbo.Events
-                WHERE Date IS NOT NULL
-                GROUP BY CONVERT(char(7), Date, 120)
-                ORDER BY ym
-            """)
-            month_rows = cur.fetchall()
+    def get(self, db: Session, event_id: int) -> Optional[EventPublic]:
+        obj = db.get(EventDB, event_id)
+        return self._to_public(obj) if obj else None
 
-            # by category (NULL → 'General')
-            cur.execute("""
-                SELECT ISNULL(Category, 'General') AS cat, COUNT(*)
-                FROM dbo.Events
-                GROUP BY ISNULL(Category, 'General')
-                ORDER BY cat
-            """)
-            cat_rows = cur.fetchall()
+    def search(self, db: Session, params: EventSearchParams) -> EventSearchResult:
+        q = db.query(EventDB)
+        if params.q:
+            like = f"%{params.q}%"
+            q = q.filter(or_(EventDB.Title.ilike(like),
+                             EventDB.Category.ilike(like),
+                             EventDB.City.ilike(like)))
+        if params.category:
+            q = q.filter(EventDB.Category == params.category)
+        if params.from_date:
+            q = q.filter(EventDB.starts_at >= datetime(params.from_date.year, params.from_date.month, params.from_date.day))
+        if params.to_date:
+            q = q.filter(EventDB.starts_at <= datetime(params.to_date.year, params.to_date.month, params.to_date.day, 23, 59, 59))
 
-        by_month = [AnalyticsBucket(key=r[0], count=r[1]) for r in month_rows]
-        by_category = [AnalyticsBucket(key=r[0], count=r[1]) for r in cat_rows]
-        return AnalyticsSummary(by_category=by_category, by_month=by_month)
+        total = q.count()
+        items = (q.order_by(EventDB.starts_at.asc().nullslast())
+                   .offset((params.page - 1) * params.limit)
+                   .limit(params.limit)
+                   .all())
+        return EventSearchResult(
+            total=total,
+            page=params.page,
+            limit=params.limit,
+            items=[self._to_public(e) for e in items],
+        )
 
-# ---------- Default repo (swap-in for the router) ----------
-repo_events: EventsRepository = SqlEventsRepository()
+    def create(self, db: Session, owner_id: int, data: EventCreate) -> EventPublic:
+        obj = EventDB(
+            Title=data.title,
+            Category=data.category,
+            Venue=data.venue,
+            City=data.city,
+            Country=data.country,
+            Price=data.price,
+            description=data.description,
+            image_url=data.image_url,
+            capacity=data.capacity or 0,
+            starts_at=data.starts_at,
+            ends_at=data.ends_at,
+            status=data.status or EventStatus.DRAFT,
+        )
+        db.add(obj)
+        db.commit()
+        db.refresh(obj)
+        return self._to_public(obj)
+
+    def update(self, db: Session, event_id: int, data: EventUpdate, requester: User) -> EventPublic:
+        obj = db.get(EventDB, event_id)
+        if not obj:
+            raise ValueError("event not found")
+
+        # Optional ownership check if you store owner_id on EventDB
+        # if requester.role == "AGENT" and getattr(obj, "OwnerId", requester.id) != requester.id:
+        #     raise PermissionError("forbidden")
+
+        for field, value in data.model_dump(exclude_unset=True).items():
+            if field == "title": obj.Title = value
+            elif field == "category": obj.Category = value
+            elif field == "venue": obj.Venue = value
+            elif field == "city": obj.City = value
+            elif field == "country": obj.Country = value
+            elif field == "price": obj.Price = value
+            elif field == "description": obj.description = value
+            elif field == "image_url": obj.image_url = value
+            elif field == "capacity": obj.capacity = value
+            elif field == "starts_at": obj.starts_at = value
+            elif field == "ends_at": obj.ends_at = value
+            elif field == "status": obj.status = value
+
+        db.commit()
+        db.refresh(obj)
+        return self._to_public(obj)
+
+    def set_status(self, db: Session, event_id: int, status: str, requester: User) -> EventPublic:
+        obj = db.get(EventDB, event_id)
+        if not obj:
+            raise ValueError("event not found")
+        obj.status = status
+        db.commit()
+        db.refresh(obj)
+        return self._to_public(obj)
+
+    def delete(self, db: Session, event_id: int, requester: User) -> None:
+        obj = db.get(EventDB, event_id)
+        if not obj:
+            return
+        db.delete(obj)
+        db.commit()
+
+    def list_for_owner(self, db: Session, owner_id: int, requester: User) -> List[EventPublic]:
+        # If there is no OwnerId column, return all for ADMIN and just a placeholder for AGENT
+        q = db.query(EventDB)
+        # If you add OwnerId later:
+        # if requester.role == "AGENT":
+        #     q = q.filter(EventDB.OwnerId == owner_id)
+        items = q.order_by(EventDB.CreatedAt.desc()).all()
+        return [self._to_public(e) for e in items]
+
+    def analytics_summary(self, db: Session):
+        # Use DB views created earlier:
+        row = db.execute("SELECT * FROM v_analytics_totals").fetchone()
+        return {
+            "total_users": row.total_users if row else 0,
+            "total_events": row.total_events if row else 0,
+            "total_registrations_confirmed": row.total_registrations_confirmed if row else 0,
+            "total_waitlist": row.total_waitlist if row else 0,
+            "total_likes": row.total_likes if row else 0,
+            "total_saves": row.total_saves if row else 0,
+        }
+
+repo_events = EventsRepo()

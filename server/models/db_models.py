@@ -1,8 +1,9 @@
-# server/models/db_models.py
 from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, Float, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 import enum
+from uuid import uuid4
+from sqlalchemy import Index
 
 Base = declarative_base()
 
@@ -33,7 +34,7 @@ class RegistrationStatusEnum(str, enum.Enum):
 class UserDB(Base):
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: uuid4().hex)
     email = Column(String, unique=True, nullable=False)
     username = Column(String, nullable=False)
     hashed_password = Column(String, nullable=False)
@@ -50,7 +51,7 @@ class UserDB(Base):
 class EventDB(Base):
     __tablename__ = "events"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: uuid4().hex)
     title = Column(String, nullable=False)
     category = Column(String, nullable=True)
     location = Column(String, nullable=True)
@@ -71,7 +72,7 @@ class EventDB(Base):
 class RegistrationDB(Base):
     __tablename__ = "registrations"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: uuid4().hex)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     event_id = Column(String, ForeignKey("events.id"), nullable=False)
     status = Column(Enum(RegistrationStatusEnum), nullable=False, default=RegistrationStatusEnum.CONFIRMED)
@@ -89,10 +90,13 @@ class RegistrationDB(Base):
 class AgentRequestDB(Base):
     __tablename__ = "agent_requests"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: uuid4().hex)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     reason = Column(String, nullable=False)
     status = Column(Enum(AgentStatusEnum), default=AgentStatusEnum.PENDING, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     decided_at = Column(DateTime, nullable=True)
     decided_by = Column(String, ForeignKey("users.id"), nullable=True)
+
+Index("ix_events_status_start", EventDB.status, EventDB.starts_at)
+Index("ix_regs_event_status", RegistrationDB.event_id, RegistrationDB.status)
