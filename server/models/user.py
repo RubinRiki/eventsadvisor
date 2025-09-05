@@ -1,41 +1,19 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr
+from typing import Literal
 
 class User(BaseModel):
-    """Represents a full internal user object including sensitive fields."""
     id: str
     email: EmailStr
     username: str
     hashed_password: str
-    role: str = "user"
+    role: Literal["USER", "AGENT", "ADMIN"] = "USER"
+    agent_status: Literal["NONE", "PENDING", "APPROVED", "REJECTED"] = "NONE"
     is_active: bool = True
 
 class UserPublic(BaseModel):
-    """Represents the user object exposed to the client (no password)."""
     id: str
     email: EmailStr
     username: str
-    role: str
+    role: Literal["USER", "AGENT", "ADMIN"]
+    agent_status: Literal["NONE", "PENDING", "APPROVED", "REJECTED"]
     is_active: bool
-
-class UserCreate(BaseModel):
-    """Schema for creating a new user."""
-    email: EmailStr
-    username: str
-    password: str
-
-    @field_validator("username")
-    @classmethod
-    def validate_username(cls, v: str) -> str:
-        """Ensure username is not empty and strip extra whitespace."""
-        v = v.strip()
-        if not v:
-            raise ValueError("username is required")
-        return v
-    
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"

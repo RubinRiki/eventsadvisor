@@ -4,7 +4,7 @@ from starlette import status
 
 from server.core.deps import get_current_user
 from server.models.user import User
-from server.models.order import RegistrationCreate, Registration
+from server.models.registration import RegistrationCreate, Registration
 from server.repositories.orders_repo import repo_orders
 from server.repositories.events_repo import repo_events
 from server.models.analytics import OrdersAnalyticsSummary 

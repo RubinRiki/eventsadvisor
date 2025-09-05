@@ -1,103 +1,81 @@
-# נייצר קובץ README.md עם התוכן שסיכמנו
+EventHub – מערכת לניהול אירועים
+רעיון כללי
 
-readme_content = """# EventAdvisor – פרויקט סיום בהנדסת מערכות חלונות
+מערכת שולחנית (Desktop) לניהול וצריכת אירועי תרבות (סטנדאפ, מוזיקה וכו’).
+המשתמשים יכולים לחפש אירועים, להירשם (קניית כרטיס), לקבל המלצות מ־AI Agent (Ollama), ולנהל אירועים בהתאם לתפקידם.
 
-## 🎯 תיאור כללי
-מערכת לניהול וחיפוש אירועים, עם שמירת נתונים בענן וחיבור לשירות חיצוני.  
-המערכת כוללת:
-- **שרת אפליקציה (FastAPI)**  
-- **בסיס נתונים בענן (Somee – SQL Server)**  
-- **Gateway חיצוני (Ticketmaster / דמו)**  
-- **אימות והרשאות עם JWT**  
-- **ממשק משתמש (PySide6 + QtCharts)**
+מודלים עיקריים
 
-המערכת תומכת בחיפוש אירועים, הצגת פרטים, ניתוח נתונים בגרפים, הזמנות משתמשים, ושילוב נתונים ממקור חיצוני.
+User – משתמש רגיל, סוכן (Agent) מפרסם אירועים, או מנהל (Admin).
 
----
+Event – תיאור, קטגוריה, תאריך, מקום, קיבולת, תמונה, סטטוס.
 
-## ✅ מה עובד היום
-- **ניהול משתמשים ואימות (Auth)**  
-  - רישום משתמש חדש (`/auth/register`)  
-  - התחברות (`/auth/login`) → קבלת `access_token`  
-  - שליפת משתמש נוכחי (`/auth/me`) עם Bearer Token  
+Registration – חיבור משתמש ↔ אירוע (רשום / המתנה / ביטול).
 
-- **אירועים – DB פנימי (Somee)**  
-  - `GET /events/search` → חיפוש עם סינון לפי טקסט, קטגוריה, תאריכים, ופאג’ינציה.  
-  - `GET /events/{id}` → שליפת אירוע בודד.  
-  - `GET /events/analytics/summary` → אנליטיקות לפי חודש/קטגוריה (מוגן בטוקן).  
-  - טבלת Events עודכנה: שדות `Category`, `Price DECIMAL`, אינדקסים על `Date` ו־`Category`.
+Reaction (אופציונלי) – לייק / שמירה.
 
-- **אירועים – Gateway חיצוני**  
-  - `GET /tm/events/search` → תוצאות דמו/חיצוני (לדוגמה: Imagine Dragons).  
-  - משמש להדגמת שילוב נתונים חיצוניים (דרישת Gateway).
+Agent Request – בקשות משתמשים להפוך לסוכנים.
 
-- **Postman** – נבדקו תסריטים:  
-  - Register/Login/Me  
-  - Events: search / get  
-  - Analytics (עם Bearer)  
-  - Gateway search  
+תפקידים ופלואים
 
-- **DB** – מוזן בנתוני דמו (5 אירועים: Conference, Music, Festival, Meetup, Workshop) לצורך בדיקות.
+משתמש רגיל – חיפוש אירועים, הרשמה, לייקים/שמירה, בקשה להפוך לסוכן.
 
----
+סוכן – יוצר/מפרסם/מעדכן את האירועים שלו.
 
-## 📐 ארכיטקטורה
-- **FastAPI** – שרת REST עם ארגון לפי תבנית MVC/CQRS.  
-- **Repositories** – גישה ל־DB עם `pyodbc`.  
-- **Somee (SQL Server)** – אחסון טבלאות Users, Events, Orders.  
-- **Gateway** – מודול נפרד לשירות חיצוני תחת prefix `/tm`.  
-- **PySide6 + QtCharts** – תצוגת Desktop (חיפוש, פרטים, גרפים).  
-- **JWT** – מנגנון הרשאות ואימות.  
-- **CORS** פתוח לפיתוח מקומי.  
+מנהל – מאשר בקשות סוכן, מנהל אירועים/משתמשים, רואה דוחות.
 
----
+מסכים עיקריים (PySide6)
 
-## 🗄️ מבנה טבלאות עיקרי
-### Users
-- `Id` (PK, Identity)  
-- `Username`, `Email` (Unique)  
-- `password_hash`, `role`, `is_active`, `CreatedAt`
+דף בית / חיפוש – רשימת אירועים, סינון/חיפוש, גרפים/טבלאות (QtCharts).
 
-### Events
-- `Id` (PK, Identity)  
-- `Title`, `Category`, `Date`, `Venue`, `City`, `Country`, `Url`  
-- `Price DECIMAL(10,2)`, `CreatedAt`  
-- אינדקסים: `IX_Events_Category`, `IX_Events_Date`  
-- קשר זר: `Orders.EventId → Events.Id`
+פרטי אירוע – מידע מלא + הרשמה/ביטול.
 
----
+פרופיל משתמש – הרשמות שלי, לייקים/שמורים, בקשה להפוך לסוכן.
 
-## 🚀 איך להריץ
-1. התקנת סביבת פיתוח:
-   ```bash
-   python -m venv venv
-   source venv/Scripts/activate  # Windows
-   pip install -r requirements.txt
+לוח בקרה לסוכן – ניהול האירועים שלי + הוספת אירוע חדש.
 
-   בדיקות מהירות (Postman)
+ניהול אדמין – בקשות סוכן + דוחות.
 
-Login:
-POST /auth/login → שמירת טוקן ל־{{token}}
+רכיבי מערכת
 
-Search DB:
-GET /events/search?q=tel&category=Conference&page=1&limit=5
+Client – PySide6 Desktop App, QtCharts לגרפים.
 
-Get Event:
-GET /events/1
+Server – FastAPI, MVC + CQRS, שמירה בענן (somee).
 
-Analytics:
-GET /events/analytics/summary (Bearer)
+Gateway – ניהול JWT, BFF למסכים, גישה לשירותים חיצוניים.
 
-Gateway:
-GET /tm/events/search?q=tel
+External – Ollama (AI Agent, RAG) לייעוץ והמלצות; Cloudinary לאחסון תמונות (אופציונלי).
 
-📌 מה עוד מתוכנן
+DevOps – Docker להרצת Ollama, קוד מנוהל ב־GitHub.
 
-Orders: יצירת הזמנות (POST /orders), הצגת הזמנות משתמש (GET /orders/my), וסטטיסטיקות לאדמין.
+עמידה בדרישות
 
-CRUD לאירועים (Admin): הוספה, עדכון, מחיקה עם הרשאת role.
+חיפוש → פרטים → הרשמה (כרטיס) ✔️
 
-סוכן AI (RAG): חיבור ל־Ollama Docker והוספת /ai/ask.
+גרף/טבלה עם QtCharts ✔️
 
-UI (PySide6): השלמת מסכים – חיפוש עם Toggle “כולל חיצוני”, פרטי אירוע, גרפים, והזמנות.
-"""
+התייעצות עם AI Agent (Ollama) ✔️
+
+Gateway + MVC/CQRS ✔️
+
+שמירה בענן (somee) ✔️
+
+Docker + GitHub Repo ✔️
+
+אופציה: Cloudinary ✔️
+
+
+עדכונים מ 05/09/25:
+נכון לעכשיו תיקיית models/ סגורה ומוכנה:
+
+✅ user.py – עודכן עם role ו־agent_status.
+
+✅ event.py – עודכן עם status, capacity, starts_at/ends_at וכו’.
+
+✅ registration.py (במקום order.py) – עודכן עם status (CONFIRMED / WAITLIST / CANCELLED).
+
+✅ analytics.py – חדש ומותאם ל־Dashboard/גרפים (Totals, ByMonth, ByCategory, ByEvent, Utilization%).
+
+✅ db_models.py – ORM עם SQLAlchemy (UserDB, EventDB, RegistrationDB, AgentRequestDB).
+
+⚠️ ai.py – קיים כמו שהיה, נשלים אותו כשנחבר את הסוכן/RAG.

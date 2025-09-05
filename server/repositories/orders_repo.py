@@ -5,7 +5,7 @@ from decimal import Decimal
 import pyodbc
 
 from server.config import settings
-from server.models.order import Registration, RegistrationCreate
+from server.models.registration import Registration, RegistrationCreate
 from server.repositories.events_repo import repo_events
 
 def _conn():
