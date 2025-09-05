@@ -79,3 +79,10 @@ Docker + GitHub Repo ✔️
 ✅ db_models.py – ORM עם SQLAlchemy (UserDB, EventDB, RegistrationDB, AgentRequestDB).
 
 ⚠️ ai.py – קיים כמו שהיה, נשלים אותו כשנחבר את הסוכן/RAG.
+
+
+אחרי העדכון: סגרנו את צד ה-Server ב-FastAPI לפי MVC/CQRS — מודלים, ORM, Repositories ו-Routers חדשים ונקיים.
+
+הכל מחובר למסד ב-Somee עם JWT ו-Roles, תהליך הרשמה (כרטיסים), בקשות סוכן, Reactions, ו-Analytics דרך Views.
+
+השרת יציב ומוכן לחיבור ל-Gateway ול-Client (PySide6 + QtCharts + AI Agent).

@@ -1,102 +1,74 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, Float, Enum, UniqueConstraint
-from sqlalchemy.orm import relationship, declarative_base
+# server/models/db_models.py
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Numeric
+from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
-import enum
-from uuid import uuid4
-from sqlalchemy import Index
 
 Base = declarative_base()
 
-# --- ENUMS ---
-class RoleEnum(str, enum.Enum):
-    USER = "USER"
-    AGENT = "AGENT"
-    ADMIN = "ADMIN"
-
-class AgentStatusEnum(str, enum.Enum):
-    NONE = "NONE"
-    PENDING = "PENDING"
-    APPROVED = "APPROVED"
-    REJECTED = "REJECTED"
-
-class EventStatusEnum(str, enum.Enum):
-    DRAFT = "DRAFT"
-    PUBLISHED = "PUBLISHED"
-    CANCELLED = "CANCELLED"
-
-class RegistrationStatusEnum(str, enum.Enum):
-    CONFIRMED = "CONFIRMED"
-    WAITLIST = "WAITLIST"
-    CANCELLED = "CANCELLED"
-
-
-# --- MODELS ---
 class UserDB(Base):
-    __tablename__ = "users"
+    __tablename__ = "Users"
+    Id = Column(Integer, primary_key=True, autoincrement=True)
+    Username = Column(String(50), nullable=False)
+    Email = Column(String(100), nullable=False, unique=True)
+    CreatedAt = Column(DateTime, default=datetime.utcnow)
+    password_hash = Column(String(255), nullable=False)        # existing column name
+    role = Column(String(50), nullable=False, default="USER")   # USER/AGENT/ADMIN
+    is_active = Column(Boolean, nullable=False, default=True)
+    agent_status = Column(String(20), nullable=False, default="NONE")  # NONE/REQUESTED/APPROVED/REJECTED
 
-    id = Column(String, primary_key=True, default=lambda: uuid4().hex)
-    email = Column(String, unique=True, nullable=False)
-    username = Column(String, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    role = Column(Enum(RoleEnum), default=RoleEnum.USER, nullable=False)
-    agent_status = Column(Enum(AgentStatusEnum), default=AgentStatusEnum.NONE, nullable=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # relationships
-    events = relationship("EventDB", back_populates="creator")
-    registrations = relationship("RegistrationDB", back_populates="user")
-
+    events = relationship("EventDB", back_populates="creator", cascade="all,delete-orphan")
+    registrations = relationship("RegistrationDB", back_populates="user", cascade="all,delete-orphan")
 
 class EventDB(Base):
-    __tablename__ = "events"
-
-    id = Column(String, primary_key=True, default=lambda: uuid4().hex)
-    title = Column(String, nullable=False)
-    category = Column(String, nullable=True)
-    location = Column(String, nullable=True)
-    starts_at = Column(DateTime, nullable=False)
-    ends_at = Column(DateTime, nullable=True)
-    status = Column(Enum(EventStatusEnum), default=EventStatusEnum.PUBLISHED, nullable=False)
+    __tablename__ = "Events"
+    Id = Column(Integer, primary_key=True, autoincrement=True)
+    Title = Column(String(200), nullable=False)
+    Category = Column(String(100))
+    Venue = Column(String(200))
+    City = Column(String(100))
+    Country = Column(String(50))
+    Url = Column(String(300))
+    CreatedAt = Column(DateTime, default=datetime.utcnow)
+    Price = Column(Numeric(10, 2))
+    # new/updated fields we added in migration:
+    starts_at = Column(DateTime)              # filled from old Date
+    ends_at = Column(DateTime)
+    status = Column(String(20), nullable=False, default="DRAFT")
     capacity = Column(Integer, nullable=False, default=0)
-    image_url = Column(String, nullable=True)
-    created_by = Column(String, ForeignKey("users.id"), nullable=False)
-    price = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    description = Column(String)              # NVARCHAR(MAX) -> String works
+    image_url = Column(String(300))
 
-    # relationships
-    creator = relationship("UserDB", back_populates="events")
-    registrations = relationship("RegistrationDB", back_populates="event")
+    # optional relation to creator (if you later add a CreatedBy column)
+    CreatedBy = Column(Integer, ForeignKey("Users.Id"), nullable=True)
+    creator = relationship("UserDB", back_populates="events", primaryjoin="UserDB.Id==EventDB.CreatedBy")
 
+    registrations = relationship("RegistrationDB", back_populates="event", cascade="all,delete-orphan")
 
 class RegistrationDB(Base):
-    __tablename__ = "registrations"
+    __tablename__ = "Registrations"
+    Id = Column(Integer, primary_key=True, autoincrement=True)
+    UserId = Column(Integer, ForeignKey("Users.Id"), nullable=False)
+    EventId = Column(Integer, ForeignKey("Events.Id"), nullable=False)
+    status = Column(String(20), nullable=False, default="CONFIRMED")  # CONFIRMED/WAITLIST/CANCELLED
+    CreatedAt = Column(DateTime, default=datetime.utcnow)
 
-    id = Column(String, primary_key=True, default=lambda: uuid4().hex)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    event_id = Column(String, ForeignKey("events.id"), nullable=False)
-    status = Column(Enum(RegistrationStatusEnum), nullable=False, default=RegistrationStatusEnum.CONFIRMED)
-    quantity = Column(Integer, default=1)
-    total_price = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    __table_args__ = (UniqueConstraint("user_id", "event_id", name="uq_user_event"),)
-
-    # relationships
     user = relationship("UserDB", back_populates="registrations")
     event = relationship("EventDB", back_populates="registrations")
 
-
 class AgentRequestDB(Base):
-    __tablename__ = "agent_requests"
+    __tablename__ = "AgentRequests"
+    Id = Column(Integer, primary_key=True, autoincrement=True)
+    UserId = Column(Integer, ForeignKey("Users.Id"), nullable=False)
+    status = Column(String(20), nullable=False, default="NEW")  # NEW/APPROVED/REJECTED
+    reason = Column(String(500))
+    CreatedAt = Column(DateTime, default=datetime.utcnow)
+    DecidedAt = Column(DateTime)
+    DecidedByUserId = Column(Integer, ForeignKey("Users.Id"))
 
-    id = Column(String, primary_key=True, default=lambda: uuid4().hex)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    reason = Column(String, nullable=False)
-    status = Column(Enum(AgentStatusEnum), default=AgentStatusEnum.PENDING, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    decided_at = Column(DateTime, nullable=True)
-    decided_by = Column(String, ForeignKey("users.id"), nullable=True)
-
-Index("ix_events_status_start", EventDB.status, EventDB.starts_at)
-Index("ix_regs_event_status", RegistrationDB.event_id, RegistrationDB.status)
+class ReactionsDB(Base):
+    __tablename__ = "Reactions"
+    Id = Column(Integer, primary_key=True, autoincrement=True)
+    UserId = Column(Integer, ForeignKey("Users.Id"), nullable=False)
+    EventId = Column(Integer, ForeignKey("Events.Id"), nullable=False)
+    type = Column(String(10), nullable=False)  # LIKE | SAVE
+    CreatedAt = Column(DateTime, default=datetime.utcnow)

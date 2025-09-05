@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 import requests
+
 from server.core.deps import get_current_user
 from server.models.user import User
 from server.models.ai import ChatRequest, ChatResponse
@@ -24,13 +25,14 @@ def _chat_ollama(messages, model: str, timeout: int) -> str:
     return msg.get("content") or ""
 
 @router.post("/ask", response_model=ChatResponse)
-def ask_ai(body: ChatRequest, current: User = Depends(get_current_user)):
+def ask_ai(body: ChatRequest, _: User = Depends(get_current_user)):
     system_prompt = "You are EventHub Assistant. Answer concisely."
     msgs = [{"role": "system", "content": system_prompt}]
     if body.history:
         for m in body.history:
             msgs.append({"role": m.role, "content": m.content})
     msgs.append({"role": "user", "content": body.question})
+
     if _ollama_available():
         answer = _chat_ollama(
             messages=msgs,
