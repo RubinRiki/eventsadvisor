@@ -78,51 +78,60 @@ Docker + GitHub Repo ✔️
 
 ✅ db_models.py – ORM עם SQLAlchemy (UserDB, EventDB, RegistrationDB, AgentRequestDB).
 
-⚠️ ai.py – קיים כמו שהיה, נשלים אותו כשנחבר את הסוכן/RAG.
+בגדול תקית הSERVER אמורה להיות סגורה- הכוונה שהיא ממומשת במלואה ולא אמור להיות שינויים. 
 
+סיכום מצב פרויקט EventHub
+מה יש ועובד
 
-אחרי העדכון: סגרנו את צד ה-Server ב-FastAPI לפי MVC/CQRS — מודלים, ORM, Repositories ו-Routers חדשים ונקיים.
+שרת FastAPI עולה ורץ עם כל ה־routers.
 
-הכל מחובר למסד ב-Somee עם JWT ו-Roles, תהליך הרשמה (כרטיסים), בקשות סוכן, Reactions, ו-Analytics דרך Views.
+מודול Auth
 
-השרת יציב ומוכן לחיבור ל-Gateway ול-Client (PySide6 + QtCharts + AI Agent).
+רישום משתמשים (/auth/register) עובד.
 
+התחברות (/auth/login) נבדק ועובד, מחזיר טוקן JWT תקין.
 
-מה עשינו
+Ollama (AI)
 
-בנינו מחדש את צד ה־SERVER (FastAPI) לפי MVC/CQRS: Routers (auth, events, registrations, agent_requests, reactions, analytics, ai, health), ריפוזיטוריז תואמי SQLAlchemy, ותיקנו את db_models.py כך שיתאים ל־Somee (טבלאות Users/Events/Registrations/..., מזהי int, שדות starts_at/status/capacity/...).
+Docker רץ, מודל llama3.1 מותקן.
 
-חיברנו את כל ה־endpoints ל־DB בעזרת db: Session = Depends(get_db) והוספנו שכבת אבטחה מלאה: jwt.py, security.py, deps.py (get_db, get_current_user, require_any/require_role).
+חיבור דרך /ai/ask מחזיר תשובה אמיתית מהמודל.
 
-ניקינו שאריות "Orders" והעברנו ל־Registrations עם לוגיקת קיבולת/המתנה; הוספנו אנליטיקות דרך Views; שמרנו endpoint ל־AI (Ollama).
+Health
 
-הקמנו Mini-Gateway (BFF) מינימלי (4 קבצים: main.py, config.py, server_client.py, security.py) שמפשט את ה־JSON למסכי PySide6 ומנהל Token ב־cookie.
+Endpoint בסיסי /health מחזיר סטטוס תקין.
 
-פתרנו תקלות סביבת פייתון: שדרגנו email-validator → 2.3.0 והתאמנו גרסאות (fastapi 0.113, uvicorn 0.31.x) עד שה־Server עולה עד שלב ה־imports.
+מבנה קוד
 
-מה עובד עכשיו
+כל המודלים וה־repositories מוגדרים.
 
-תשתית ה־SERVER קומפיילת עד שלב הטעינה (Uvicorn רץ), ה־deps/jwt/security תקינים, החיבורים ל־DB מוכנים, ורוב ה־routers/Repos מסתנכרנים מול המודלים וה־ORM.
+כל ה־routers קיימים ומחוברים ב־main.py.
 
-הסביבה (venv) תקינה לאחר עדכוני התלויות; Swagger צפוי לעלות אחרי סגירת ה־importים.
+קבצי __init__.py הוספו כדי לאפשר ייבוא תקין.
 
-השגיאה הנוכחית (חוסמת)
+מה חסר / לא נבדק
 
-בעת טעינת האפליקציה:
-ImportError: cannot import name 'EventPublic' from 'server.models.event'
+בדיקות ראוטרים נוספים:
 
-המשמעות: בקובץ server/api/events.py אנחנו מייבאים EventPublic (וגם EventCreate/EventUpdate/EventSearchParams/EventSearchResult/AnalyticsSummary), אבל ב־server/models/event.py המחלקות הללו לא מוגדרות/לא מיוצאות בשם הזה.
+Events (/events) – יצירה, חיפוש, עדכון סטטוס.
 
-נדרש יישור בין ה־API/Repos לבין ה־Pydantic models: או להוסיף את המחלקות ל־models/event.py (לפי ההגדרות שהשתמשנו בהן), או לעדכן את ה־imports בקובצי ה־API/Repos לשמות המחלקות שקיימים בפועל.
+Registrations (/registrations) – הרשמה, ביטול, רשימת רישומים.
 
-הצעת המשך (לביצוע בסבב הבא)
+Reactions (/reactions) – לייק/שמירה.
 
-להשלים/ליישר את server/models/event.py עם המחלקות:
-EventPublic, EventCreate, EventUpdate, EventSearchParams, EventSearchResult, AnalyticsSummary.
-(אלו המחלקות שבהן ה־routers/Repos משתמשים כרגע.)
+Agent Requests (/agent-requests) – בקשות להפוך לסוכן, אישור/דחייה.
 
-להריץ שוב: uvicorn server.main:app --reload ולוודא שה־/health ו־/docs עולים.
+Analytics (/analytics/summary) – החזרת סיכומי נתונים.
 
-רק לאחר שה־SERVER עולה חלק – להגדיר SERVER_BASE_URL ולהריץ את ה־Gateway.
+Seed Data – עדיין אין נתוני דמו (משתמשים, אירועים, רישומים).
 
-אם תרצי—אשלח לך את תוכן models/event.py המדויק שתואם 1:1 ל־API/Repos הנוכחיים.
+Client (PySide6) – לא חובר עדיין ל־API (מסכים, גרפים עם QtCharts).
+
+הרשאות – לא נבדק שכל החוקים (USER/AGENT/ADMIN) פועלים בפועל.
+
+שגיאות DB – צריך לבדוק חיבורים/טיים־אאוטים מול somee בפועל.
+
+RAG – כרגע ה־AI עונה כללי בלבד; אין הקשר מה־DB של האירועים.
+
+בדיקות End-to-End – צריך לעבור ב־Postman/GUI על כל הפלואו:
+רישום → התחברות → יצירת אירוע → הרשמה → לייק/שמירה → Analytics.
