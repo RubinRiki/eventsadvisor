@@ -15,11 +15,20 @@ class ReactionsRepo:
         )
 
     def add(self, db: Session, user_id: int, data: ReactionCreate) -> ReactionPublic:
+        exists = (db.query(ReactionsDB)
+                    .filter(ReactionsDB.UserId == user_id,
+                            ReactionsDB.EventId == data.event_id,
+                            ReactionsDB.type == data.type)
+                    .first())
+        if exists:
+            return self._to_public(exists)
+
         obj = ReactionsDB(UserId=user_id, EventId=data.event_id, type=data.type)
         db.add(obj)
         db.commit()
         db.refresh(obj)
         return self._to_public(obj)
+
 
     def get(self, db: Session, reaction_id: int) -> Optional[ReactionPublic]:
         r = db.get(ReactionsDB, reaction_id)

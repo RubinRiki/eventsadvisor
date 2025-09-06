@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List
 from datetime import datetime
 from sqlalchemy.orm import Session
-from server.models.db_models import AgentRequestDB, UsersDB  
+from server.models.db_models import AgentRequestDB, UserDB
 from server.models.agent_request import AgentRequestCreate, AgentRequestPublic
 
 class AgentRequestsRepo:

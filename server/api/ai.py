@@ -1,43 +1,47 @@
-from fastapi import APIRouter, Depends, HTTPException
-import requests
-
-from server.core.deps import get_current_user
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from server.core.deps import get_db, get_current_user
+from server.core.config import settings
 from server.models.user import User
 from server.models.ai import ChatRequest, ChatResponse
-from server.core.config import settings
+import requests
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
-def _ollama_available() -> bool:
-    try:
-        r = requests.get(f"{settings.OLLAMA_URL}/api/tags", timeout=3)
-        return r.status_code == 200
-    except Exception:
-        return False
-
-def _chat_ollama(messages, model: str, timeout: int) -> str:
-    payload = {"model": model, "messages": messages, "stream": False}
-    r = requests.post(f"{settings.OLLAMA_URL}/api/chat", json=payload, timeout=timeout)
-    if r.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"ollama error: {r.text[:200]}")
-    data = r.json()
-    msg = data.get("message") or {}
-    return msg.get("content") or ""
+def _build_messages(body: ChatRequest) -> list[dict]:
+    if getattr(body, "history", None):
+        return [{"role": m.role, "content": m.content} for m in body.history]
+    if getattr(body, "messages", None):
+        return [{"role": m.role, "content": m.content} for m in body.messages]
+    if getattr(body, "question", None):
+        return [{"role": "user", "content": body.question}]
+    return []
 
 @router.post("/ask", response_model=ChatResponse)
-def ask_ai(body: ChatRequest, _: User = Depends(get_current_user)):
-    system_prompt = "You are EventHub Assistant. Answer concisely."
-    msgs = [{"role": "system", "content": system_prompt}]
-    if body.history:
-        for m in body.history:
-            msgs.append({"role": m.role, "content": m.content})
-    msgs.append({"role": "user", "content": body.question})
-
-    if _ollama_available():
-        answer = _chat_ollama(
-            messages=msgs,
-            model=getattr(settings, "AI_MODEL", "llama3"),
-            timeout=getattr(settings, "AI_TIMEOUT", 15),
-        )
-        return ChatResponse(answer=answer or "no answer", used_model=settings.AI_MODEL, from_cache=False)
-    return ChatResponse(answer="demo mode: no model connected", used_model="fallback", from_cache=False)
+def ask_ai(
+    body: ChatRequest,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    model_name = settings.AI_MODEL
+    url = f"{settings.OLLAMA_URL.rstrip('/')}/api/chat"
+    payload = {
+        "model": model_name,
+        "messages": _build_messages(body),
+        "stream": False,
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=settings.AI_TIMEOUT)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="AI service unavailable") from e
+    if r.status_code >= 400:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="AI service error")
+    data = r.json() or {}
+    answer = ""
+    if isinstance(data.get("message"), dict):
+        answer = data["message"].get("content", "")
+    if not answer and "response" in data:
+        answer = data.get("response", "")
+    if not answer:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="invalid AI response")
+    return ChatResponse(answer=answer, used_model=model_name)

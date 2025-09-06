@@ -1,9 +1,7 @@
-# server/models/user.py
 from __future__ import annotations
 from typing import Optional, Literal
 from pydantic import BaseModel, EmailStr
 
-# Roles & Agent status (strings)
 Role = Literal["USER", "AGENT", "ADMIN"]
 AgentStatus = Literal["NONE", "REQUESTED", "APPROVED", "REJECTED"]
 
@@ -23,8 +21,7 @@ class User(BaseModel):
     role: Role = "USER"
     agent_status: AgentStatus = "NONE"
     is_active: bool = True
-    # include hashed_password so repos/auth can access it if needed
-    hashed_password: Optional[str] = None
+    password_hash: Optional[str] = None
 
 class UserPublic(BaseModel):
     id: int

@@ -1,33 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
-
-from server.core.deps import get_db, get_current_user
-from server.core.security import verify_password
-from server.core.jwt import create_access_token
-from server.models.user import UserCreate, UserLogin, UserPublic, Token, User
+from fastapi import APIRouter, HTTPException, status
+from server.models.user import UserCreate, UserLogin, Token, UserPublic
 from server.repositories.users_repo import repo_users
+from server.core.security import hash_password, verify_password
+from server.core.jwt import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: Session = Depends(get_db)):
-    existing = repo_users.get_by_email(db, payload.email.lower())
-    if existing:
-        raise HTTPException(status_code=400, detail="email already in use")
-    hashed = pwd_context.hash(payload.password)
-    user = repo_users.create(db, payload, hashed_password=hashed)
-    return UserPublic.model_validate(user.model_dump())
+def register(body: UserCreate):
+    if repo_users.get_by_email(body.email):
+        raise HTTPException(status_code=400, detail="email already exists")
+    pwd_hash = hash_password(body.password)
+    user = repo_users.create(body, pwd_hash, role="USER")
+    return UserPublic(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        agent_status=getattr(user, "agent_status", "NONE"),
+        is_active=user.is_active,
+    )
 
 @router.post("/login", response_model=Token)
-def login(payload: UserLogin, db: Session = Depends(get_db)):
-    user = repo_users.get_by_email(db, payload.email.lower())
-    if not user or not verify_password(payload.password, user.hashed_password):
+def login(body: UserLogin):
+    user = repo_users.get_by_email(body.email)
+    if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="invalid credentials")
     token = create_access_token(sub=user.email, role=user.role)
-    return Token(access_token=token, token_type="bearer")
-
-@router.get("/me", response_model=UserPublic)
-def me(current: User = Depends(get_current_user)):
-    return UserPublic.model_validate(current.model_dump())
+    return Token(access_token=token)

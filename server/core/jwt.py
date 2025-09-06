@@ -5,7 +5,7 @@ from jose import jwt, JWTError
 
 # Adjust to your settings module if different
 try:
-    from server.config import settings
+    from server.core.config import settings
     SECRET = getattr(settings, "JWT_SECRET", "change-me")
     ALGO = getattr(settings, "JWT_ALGORITHM", "HS256")
     EXPIRES_MIN = int(getattr(settings, "JWT_EXPIRES_MINUTES", 60))

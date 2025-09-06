@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import Optional, List, Tuple
-from datetime import date, datetime
+from typing import Optional, List
+from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
+from sqlalchemy import or_
 from server.models.db_models import EventDB
 from server.models.event import (
     EventPublic, EventCreate, EventUpdate,
-    EventSearchParams, EventSearchResult, EventStatus
+    EventSearchParams, EventSearchResult
 )
 from server.models.user import User
 
@@ -26,7 +26,7 @@ class EventsRepo:
             starts_at=e.starts_at,
             ends_at=e.ends_at,
             status=e.status,
-            owner_id=getattr(e, "OwnerId", None) if hasattr(e, "OwnerId") else None,
+            owner_id=getattr(e, "CreatedBy", None),
             created_at=e.CreatedAt,
         )
 
@@ -44,9 +44,11 @@ class EventsRepo:
         if params.category:
             q = q.filter(EventDB.Category == params.category)
         if params.from_date:
-            q = q.filter(EventDB.starts_at >= datetime(params.from_date.year, params.from_date.month, params.from_date.day))
+            q = q.filter(EventDB.starts_at >= datetime(
+                params.from_date.year, params.from_date.month, params.from_date.day))
         if params.to_date:
-            q = q.filter(EventDB.starts_at <= datetime(params.to_date.year, params.to_date.month, params.to_date.day, 23, 59, 59))
+            q = q.filter(EventDB.starts_at <= datetime(
+                params.to_date.year, params.to_date.month, params.to_date.day, 23, 59, 59))
 
         total = q.count()
         items = (q.order_by(EventDB.starts_at.asc().nullslast())
@@ -73,7 +75,8 @@ class EventsRepo:
             capacity=data.capacity or 0,
             starts_at=data.starts_at,
             ends_at=data.ends_at,
-            status=data.status or EventStatus.DRAFT,
+            status=data.status or "DRAFT",
+            CreatedBy=owner_id,
         )
         db.add(obj)
         db.commit()
@@ -84,10 +87,6 @@ class EventsRepo:
         obj = db.get(EventDB, event_id)
         if not obj:
             raise ValueError("event not found")
-
-        # Optional ownership check if you store owner_id on EventDB
-        # if requester.role == "AGENT" and getattr(obj, "OwnerId", requester.id) != requester.id:
-        #     raise PermissionError("forbidden")
 
         for field, value in data.model_dump(exclude_unset=True).items():
             if field == "title": obj.Title = value
@@ -108,6 +107,8 @@ class EventsRepo:
         return self._to_public(obj)
 
     def set_status(self, db: Session, event_id: int, status: str, requester: User) -> EventPublic:
+        if status not in ("DRAFT", "PUBLISHED", "ARCHIVED"):
+            raise ValueError("invalid status")
         obj = db.get(EventDB, event_id)
         if not obj:
             raise ValueError("event not found")
@@ -124,16 +125,13 @@ class EventsRepo:
         db.commit()
 
     def list_for_owner(self, db: Session, owner_id: int, requester: User) -> List[EventPublic]:
-        # If there is no OwnerId column, return all for ADMIN and just a placeholder for AGENT
         q = db.query(EventDB)
-        # If you add OwnerId later:
-        # if requester.role == "AGENT":
-        #     q = q.filter(EventDB.OwnerId == owner_id)
+        if requester.role == "AGENT":
+            q = q.filter(EventDB.CreatedBy == owner_id)
         items = q.order_by(EventDB.CreatedAt.desc()).all()
         return [self._to_public(e) for e in items]
 
     def analytics_summary(self, db: Session):
-        # Use DB views created earlier:
         row = db.execute("SELECT * FROM v_analytics_totals").fetchone()
         return {
             "total_users": row.total_users if row else 0,

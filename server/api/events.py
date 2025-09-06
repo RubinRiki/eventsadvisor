@@ -8,7 +8,7 @@ from server.models.user import User
 from server.models.event import (
     EventPublic, EventCreate, EventUpdate,
     EventSearchParams, EventSearchResult,
-    EventStatus, AnalyticsSummary
+    EventStatus, EventAnalyticsSummary
 )
 from server.repositories.events_repo import repo_events
 
@@ -100,7 +100,7 @@ def list_my_events(
     items = repo_events.list_for_owner(db, owner_id=int(current.id), requester=current)
     return [EventPublic.model_validate(e.model_dump()) for e in items]
 
-@router.get("/analytics/summary", response_model=AnalyticsSummary)
+@router.get("/analytics/summary", response_model=EventAnalyticsSummary)
 def analytics_summary(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),

@@ -1,10 +1,17 @@
+from __future__ import annotations
+from typing import Literal
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-class Reaction(BaseModel):
-    id: str
-    user_id: str
-    event_id: str
-    kind: str = Field(pattern="^(like|rating)$")
-    rating: int | None = None 
+ReactionType = Literal["LIKE", "SAVE"]
+
+class ReactionCreate(BaseModel):
+    event_id: int
+    type: ReactionType  # "LIKE" | "SAVE"
+
+class ReactionPublic(BaseModel):
+    id: int
+    user_id: int
+    event_id: int
+    type: ReactionType
     created_at: datetime

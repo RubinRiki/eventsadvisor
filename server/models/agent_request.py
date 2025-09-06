@@ -1,12 +1,18 @@
-from pydantic import BaseModel
-from typing import Literal
+from __future__ import annotations
+from typing import Literal, Optional
 from datetime import datetime
+from pydantic import BaseModel, Field
 
-class AgentRequest(BaseModel):
-    id: str
-    user_id: str
-    reason: str
-    status: Literal["PENDING","APPROVED","REJECTED"] = "PENDING"
+AgentRequestStatus = Literal["NEW", "APPROVED", "REJECTED"]
+
+class AgentRequestCreate(BaseModel):
+    reason: str = Field(min_length=2, max_length=500)
+
+class AgentRequestPublic(BaseModel):
+    id: int
+    user_id: int
+    status: AgentRequestStatus
+    reason: Optional[str] = None
     created_at: datetime
-    decided_at: datetime | None = None
-    decided_by: str | None = None  # admin id
+    decided_at: Optional[datetime] = None
+    decided_by: Optional[int] = None
