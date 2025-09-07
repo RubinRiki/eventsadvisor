@@ -135,3 +135,90 @@ RAG – כרגע ה־AI עונה כללי בלבד; אין הקשר מה־DB ש�
 
 בדיקות End-to-End – צריך לעבור ב־Postman/GUI על כל הפלואו:
 רישום → התחברות → יצירת אירוע → הרשמה → לייק/שמירה → Analytics.
+
+
+
+
+
+
+
+
+
+
+מה כבר עשינו יום ראשון
+
+צד שרת (server)
+
+בנינו מודלים (UserDB, EventDB, RegistrationDB, ReactionsDB, AgentRequestDB).
+
+יצרנו Pydantic Models (Public / Create) לכל ישות.
+
+כתבנו Repositories לכל ישות (users, events, registrations, reactions, agent_requests).
+
+בנינו Routers ב־FastAPI (auth, events, registrations, reactions, agent-requests).
+
+חיברנו JWT + אבטחה (get_current_user, require_role וכו').
+
+הוספנו seed data (משתמשים, אירועים, הרשמות, לייקים, agent requests).
+
+צד לקוח (client, PySide6)
+
+יש לנו מבנה מסודר:
+
+client/
+  app.py
+  app_shell.py
+  views/
+  ui/
+  core/
+  gateway/
+
+
+כתבנו app.py שמרים את ה־QApplication ואת ה־AppShell.
+
+כתבנו AppShell עם Sidebar, StackedWidget ו־views.
+
+הוספנו LoginView שמבצע קריאה ל־auth/login בשרת ושומר את ה־JWT.
+
+הכנו auth_service ב־gateway שמתקשר לשרת.
+
+דיבאג
+
+פתרנו בעיות של נתונים חסרים בטבלאות.
+
+תיקנו imports שקשורים ל־client.gateway.auth_service.
+
+כרגע השגיאה היא ש־views מנסים לייבא ui כאילו היא חבילה ברמה העליונה, אבל בעצם היא תחת client/ui.
+
+❌ מה עדיין בעייתי
+
+Imports לא נכונים:
+בקבצי views (כמו details_view.py, search_view.py) מופיע:
+
+from ui.components.cards import Card
+
+
+אבל זה צריך להיות:
+
+from client.ui.components.cards import Card
+
+
+או בגרסה יחסית:
+
+from ..ui.components.cards import Card
+
+
+בדיקת UI בלייב:
+עוד לא ראינו את מסך ה־Login עובד באמת, כי הקוד נתקע על ה־imports.
+
+⏭ מה נשאר לנו לעשות
+
+לתקן imports בכל ה־views שקשורים ל־ui → לשים client.ui... או ..ui....
+
+להריץ שוב את האפליקציה ולבדוק שה־LoginView נפתח, ואפשר להכניס מייל+סיסמה.
+
+לבדוק שה־login שולח בקשה לשרת ומחזיר JWT.
+
+אחרי שזה עובד – להמשיך ל־SearchView ולחבר אותו ל־API של events/search.
+
+משם – לבנות לאט לאט את שאר המסכים (Details, Charts, Consult) לפי ההוראות של ה־MVP.
