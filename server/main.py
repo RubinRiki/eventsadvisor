@@ -1,7 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from server.api import auth, events, registrations, agent_requests, reactions, analytics, ai, health
+from server.api import (
+    auth,
+    events,
+    registrations,
+    agent_requests,
+    reactions,
+    analytics,
+    ai,
+    health,
+)
 from server.core.config import settings
 
 app = FastAPI(title="EventHub API", version="1.0.0")

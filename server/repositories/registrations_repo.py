@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from server.models.db_models import RegistrationDB, EventDB
 from server.models.registration import RegistrationCreate, RegistrationPublic, RegistrationStatus
-from server.models.user import User
+from server.models.user import UserInDB as User
 
 class RegistrationsRepo:
     def _to_public(self, r: RegistrationDB) -> RegistrationPublic:

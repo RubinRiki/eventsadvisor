@@ -1,23 +1,28 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
-import pyodbc
-from server.models.user import User, UserCreate
 from server.core.config import settings
+from server.models.user import UserInDB, UserCreate
+import pyodbc
+
 
 class UsersRepository(ABC):
     @abstractmethod
-    def get_by_email(self, email: str) -> Optional[User]: ...
+    def get_by_email(self, email: str) -> Optional[UserInDB]: ...
     @abstractmethod
-    def get_by_id(self, user_id: int) -> Optional[User]: ...
+    def get_by_id(self, user_id: int) -> Optional[UserInDB]: ...
     @abstractmethod
-    def create(self, data: UserCreate, password_hash: str, role: str = "USER") -> User: ...
+    def create(
+        self, data: UserCreate, password_hash: str, role: str = "USER"
+    ) -> UserInDB: ...
+
 
 def _conn():
     return pyodbc.connect(settings.DB_URL, autocommit=True)
 
-def _row_to_user(row: Any) -> User:
-    return User(
+
+def _row_to_user(row: Any) -> UserInDB:
+    return UserInDB(
         id=int(row[0]),
         username=row[1],
         email=row[2],
@@ -26,13 +31,14 @@ def _row_to_user(row: Any) -> User:
         is_active=bool(row[5]),
     )
 
+
 class SqlUsersRepository(UsersRepository):
     def get_by_email(self, email: str) -> Optional[User]:
         with _conn() as conn:
             cur = conn.cursor()
             cur.execute(
                 "SELECT Id, Username, Email, password_hash, role, is_active FROM Users WHERE LOWER(Email) = LOWER(?)",
-                (email,)
+                (email,),
             )
             row = cur.fetchone()
         return _row_to_user(row) if row else None
@@ -42,7 +48,7 @@ class SqlUsersRepository(UsersRepository):
             cur = conn.cursor()
             cur.execute(
                 "SELECT Id, Username, Email, password_hash, role, is_active FROM Users WHERE Id = ?",
-                (user_id,)
+                (user_id,),
             )
             row = cur.fetchone()
         return _row_to_user(row) if row else None
@@ -58,10 +64,16 @@ class SqlUsersRepository(UsersRepository):
                 OUTPUT INSERTED.Id, INSERTED.Username, INSERTED.Email, INSERTED.password_hash, INSERTED.role, INSERTED.is_active
                 VALUES (?, ?, ?, ?)
                 """,
-                (data.username.strip(), data.email.lower(), password_hash, role.upper())
+                (
+                    data.username.strip(),
+                    data.email.lower(),
+                    password_hash,
+                    role.upper(),
+                ),
             )
             row = cur.fetchone()
         return _row_to_user(row)
+
 
 class InMemoryUsersRepository(UsersRepository):
     def __init__(self) -> None:
@@ -87,11 +99,12 @@ class InMemoryUsersRepository(UsersRepository):
             username=data.username.strip(),
             password_hash=password_hash,
             role=role.upper(),
-            is_active=True
+            is_active=True,
         )
         self._by_id[uid] = user
         self._by_email[user.email] = uid
         return user
+
 
 try:
     _ = _conn().cursor()

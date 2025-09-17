@@ -1,9 +1,30 @@
+# -*- coding: utf-8 -*-
+# ================================================================
+#  EventHub Client — app.py
+#  Created by: Riki Rubin & Hadas Donat
+# ================================================================
+"""
+📌 Purpose (Explanation Box)
+Main entry point of the EventHub desktop client (PySide6).
+
+Run from project root:
+    python -m client.app
+"""
+
 import sys
 from PySide6.QtWidgets import QApplication
-from app_shell import AppShell
+
+# ✅ Relative import so `python -m client.app` works reliably
+from .app_shell import AppShell
+
+
+def main() -> int:
+    """Bootstraps the Qt application and launches the main shell window."""
+    app = QApplication(sys.argv)   # create Qt application (event loop manager)
+    win = AppShell(app)            # create main window (shell)
+    win.show()                     # show window
+    return app.exec()              # start event loop
+
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    win = AppShell(app)
-    win.show()
-    sys.exit(app.exec())
+    sys.exit(main())

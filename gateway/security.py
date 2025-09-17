@@ -1,21 +1,11 @@
-from typing import Optional
-from fastapi import Cookie, HTTPException, Response
-from gateway.config import settings
+from passlib.context import CryptContext
 
-def get_token(gw_token: Optional[str] = Cookie(default=None, alias=settings.COOKIE_NAME)):
-    if not gw_token:
-        raise HTTPException(status_code=401, detail="missing token")
-    return gw_token
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def set_token(resp: Response, token: str):
-    resp.set_cookie(
-        key=settings.COOKIE_NAME,
-        value=token,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite=settings.COOKIE_SAMESITE,
-        path="/",
-    )
 
-def clear_token(resp: Response):
-    resp.delete_cookie(key=settings.COOKIE_NAME, path="/")
+def hash_password(plain: str) -> str:
+    return _pwd.hash(plain)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return _pwd.verify(plain, hashed)

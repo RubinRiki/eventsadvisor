@@ -5,10 +5,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from server.models.db_models import EventDB
 from server.models.event import (
-    EventPublic, EventCreate, EventUpdate,
-    EventSearchParams, EventSearchResult
+    EventPublic,
+    EventCreate,
+    EventUpdate,
+    EventSearchParams,
+    EventSearchResult,
 )
-from server.models.user import User
+from server.models.user import UserInDB as User
+
 
 class EventsRepo:
     def _to_public(self, e: EventDB) -> EventPublic:
@@ -38,23 +42,42 @@ class EventsRepo:
         q = db.query(EventDB)
         if params.q:
             like = f"%{params.q}%"
-            q = q.filter(or_(EventDB.Title.ilike(like),
-                             EventDB.Category.ilike(like),
-                             EventDB.City.ilike(like)))
+            q = q.filter(
+                or_(
+                    EventDB.Title.ilike(like),
+                    EventDB.Category.ilike(like),
+                    EventDB.City.ilike(like),
+                )
+            )
         if params.category:
             q = q.filter(EventDB.Category == params.category)
         if params.from_date:
-            q = q.filter(EventDB.starts_at >= datetime(
-                params.from_date.year, params.from_date.month, params.from_date.day))
+            q = q.filter(
+                EventDB.starts_at
+                >= datetime(
+                    params.from_date.year, params.from_date.month, params.from_date.day
+                )
+            )
         if params.to_date:
-            q = q.filter(EventDB.starts_at <= datetime(
-                params.to_date.year, params.to_date.month, params.to_date.day, 23, 59, 59))
+            q = q.filter(
+                EventDB.starts_at
+                <= datetime(
+                    params.to_date.year,
+                    params.to_date.month,
+                    params.to_date.day,
+                    23,
+                    59,
+                    59,
+                )
+            )
 
         total = q.count()
-        items = (q.order_by(EventDB.starts_at.asc().nullslast())
-                   .offset((params.page - 1) * params.limit)
-                   .limit(params.limit)
-                   .all())
+        items = (
+            q.order_by(EventDB.starts_at.asc().nullslast())
+            .offset((params.page - 1) * params.limit)
+            .limit(params.limit)
+            .all()
+        )
         return EventSearchResult(
             total=total,
             page=params.page,
@@ -83,30 +106,46 @@ class EventsRepo:
         db.refresh(obj)
         return self._to_public(obj)
 
-    def update(self, db: Session, event_id: int, data: EventUpdate, requester: User) -> EventPublic:
+    def update(
+        self, db: Session, event_id: int, data: EventUpdate, requester: User
+    ) -> EventPublic:
         obj = db.get(EventDB, event_id)
         if not obj:
             raise ValueError("event not found")
 
         for field, value in data.model_dump(exclude_unset=True).items():
-            if field == "title": obj.Title = value
-            elif field == "category": obj.Category = value
-            elif field == "venue": obj.Venue = value
-            elif field == "city": obj.City = value
-            elif field == "country": obj.Country = value
-            elif field == "price": obj.Price = value
-            elif field == "description": obj.description = value
-            elif field == "image_url": obj.image_url = value
-            elif field == "capacity": obj.capacity = value
-            elif field == "starts_at": obj.starts_at = value
-            elif field == "ends_at": obj.ends_at = value
-            elif field == "status": obj.status = value
+            if field == "title":
+                obj.Title = value
+            elif field == "category":
+                obj.Category = value
+            elif field == "venue":
+                obj.Venue = value
+            elif field == "city":
+                obj.City = value
+            elif field == "country":
+                obj.Country = value
+            elif field == "price":
+                obj.Price = value
+            elif field == "description":
+                obj.description = value
+            elif field == "image_url":
+                obj.image_url = value
+            elif field == "capacity":
+                obj.capacity = value
+            elif field == "starts_at":
+                obj.starts_at = value
+            elif field == "ends_at":
+                obj.ends_at = value
+            elif field == "status":
+                obj.status = value
 
         db.commit()
         db.refresh(obj)
         return self._to_public(obj)
 
-    def set_status(self, db: Session, event_id: int, status: str, requester: User) -> EventPublic:
+    def set_status(
+        self, db: Session, event_id: int, status: str, requester: User
+    ) -> EventPublic:
         if status not in ("DRAFT", "PUBLISHED", "ARCHIVED"):
             raise ValueError("invalid status")
         obj = db.get(EventDB, event_id)
@@ -124,7 +163,9 @@ class EventsRepo:
         db.delete(obj)
         db.commit()
 
-    def list_for_owner(self, db: Session, owner_id: int, requester: User) -> List[EventPublic]:
+    def list_for_owner(
+        self, db: Session, owner_id: int, requester: User
+    ) -> List[EventPublic]:
         q = db.query(EventDB)
         if requester.role == "AGENT":
             q = q.filter(EventDB.CreatedBy == owner_id)
@@ -136,10 +177,13 @@ class EventsRepo:
         return {
             "total_users": row.total_users if row else 0,
             "total_events": row.total_events if row else 0,
-            "total_registrations_confirmed": row.total_registrations_confirmed if row else 0,
+            "total_registrations_confirmed": (
+                row.total_registrations_confirmed if row else 0
+            ),
             "total_waitlist": row.total_waitlist if row else 0,
             "total_likes": row.total_likes if row else 0,
             "total_saves": row.total_saves if row else 0,
         }
+
 
 repo_events = EventsRepo()
