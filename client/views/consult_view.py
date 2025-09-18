@@ -1,4 +1,5 @@
-# views/consult_view.py
+# client/views/consult_view.py
+import os, requests, asyncio
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -10,9 +11,7 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 from PySide6.QtCore import Qt
-# from ui.components.labels import PageTitle, Muted
-from ..ui import SearchBar, EventCard, PageTitle, Muted
-
+from ..ui import PageTitle, Muted
 
 
 class ChatBubble(QFrame):
@@ -34,7 +33,7 @@ class ConsultView(QWidget):
         root.setContentsMargins(16, 28, 16, 16)
         root.setSpacing(12)
         root.addWidget(PageTitle("ייעוץ עם הסוכן"))
-        root.addWidget(Muted("דמו עיצוב צ׳אט: היינט/שמאל, צבעים שונים."))
+        root.addWidget(Muted("שוחחי עם הבוט וקבלי תשובות חכמות מבוססות AI."))
 
         # Scrollable chat area
         self.scroll = QScrollArea()
@@ -57,13 +56,13 @@ class ConsultView(QWidget):
         row.addWidget(send)
         root.addLayout(row)
 
-        # דמו: הודעה פתיחה מהבוט
-        self.add_bot("שלום! איך אפשר לעזור?")
+        # הודעת פתיחה מהבוט
+        self.add_bot("שלום הדסוש 💙 איך אפשר לעזור?")
 
         send.clicked.connect(self._send)
         self.input.returnPressed.connect(self._send)
 
-        # סטייל לבועות (אפשר לשים גם ב-style_manager אם תרצי)
+        # סטייל לבועות (אפשר להעביר ל-style_manager)
         self.setStyleSheet(
             """
             QFrame#UserBubble {
@@ -105,7 +104,20 @@ class ConsultView(QWidget):
             return
         self.add_user(text)
         self.input.clear()
-        self.add_bot("אני בוט דמו. בהמשך אחבר ל-API וניתן תשובות חכמות 😊")
+        # הוספת "כותב..." זמני
+        self.add_bot("הבוט כותב...")
+        asyncio.create_task(self.ask_ai(text))
+
+    async def ask_ai(self, text: str):
+        try:
+            url = f"{os.getenv('GATEWAY_BASE_URL','http://127.0.0.1:9000')}/ai/ask"
+            r = requests.post(url, json={"question": text}, timeout=20)
+            r.raise_for_status()
+            data = r.json()
+            answer = data.get("answer", "❌ לא התקבלה תשובה מהבוט")
+            self.add_bot(answer)
+        except Exception as e:
+            self.add_bot(f"שגיאה: {e}")
 
     def _scroll_bottom(self):
         self.scroll.verticalScrollBar().setValue(
