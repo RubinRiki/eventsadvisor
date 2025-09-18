@@ -23,11 +23,12 @@ from __future__ import annotations
 from typing import Optional, List, Literal
 from datetime import date, datetime
 
+
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 # ---------------- Enums ----------------
-EventStatus = Literal["DRAFT", "PUBLISHED", "ARCHIVED"]
+EventStatus = Literal["DRAFT", "PUBLISHED", "ARCHIVED", "ACTIVE"]
 
 
 # ---------------- Base (shared) ----------------

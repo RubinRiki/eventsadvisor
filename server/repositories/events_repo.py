@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import case, or_
 from server.models.db_models import EventDB
 from server.models.event import (
     EventPublic,
@@ -40,6 +40,7 @@ class EventsRepo:
 
     def search(self, db: Session, params: EventSearchParams) -> EventSearchResult:
         q = db.query(EventDB)
+
         if params.q:
             like = f"%{params.q}%"
             q = q.filter(
@@ -49,35 +50,41 @@ class EventsRepo:
                     EventDB.City.ilike(like),
                 )
             )
+
         if params.category:
             q = q.filter(EventDB.Category == params.category)
+
         if params.from_date:
             q = q.filter(
-                EventDB.starts_at
-                >= datetime(
+                EventDB.starts_at >= datetime(
                     params.from_date.year, params.from_date.month, params.from_date.day
                 )
             )
+
         if params.to_date:
             q = q.filter(
-                EventDB.starts_at
-                <= datetime(
-                    params.to_date.year,
-                    params.to_date.month,
-                    params.to_date.day,
-                    23,
-                    59,
-                    59,
+                EventDB.starts_at <= datetime(
+                    params.to_date.year, params.to_date.month, params.to_date.day, 23, 59, 59
                 )
             )
 
         total = q.count()
-        items = (
-            q.order_by(EventDB.starts_at.asc().nullslast())
-            .offset((params.page - 1) * params.limit)
-            .limit(params.limit)
-            .all()
+
+        q = q.order_by(
+            case((EventDB.starts_at.is_(None), 1), else_=0).asc(),
+            EventDB.starts_at.asc(),
+            EventDB.Id.asc(),
         )
+
+        # פאגינציה תואמת MSSQL:
+        # בעמוד ראשון לא לבצע offset(0) – זה יוצר TOP(...) במקום FETCH FIRST
+        offset = (params.page - 1) * params.limit
+        if offset > 0:
+            q = q.offset(offset).limit(params.limit)   # יפיק OFFSET ... FETCH NEXT ... ONLY
+        else:
+            q = q.limit(params.limit)                  # יפיק SELECT TOP (...) ...
+
+        items = q.all()
         return EventSearchResult(
             total=total,
             page=params.page,
@@ -146,7 +153,7 @@ class EventsRepo:
     def set_status(
         self, db: Session, event_id: int, status: str, requester: User
     ) -> EventPublic:
-        if status not in ("DRAFT", "PUBLISHED", "ARCHIVED"):
+        if status not in ("DRAFT", "PUBLISHED", "ARCHIVED", "ACTIVE"):
             raise ValueError("invalid status")
         obj = db.get(EventDB, event_id)
         if not obj:

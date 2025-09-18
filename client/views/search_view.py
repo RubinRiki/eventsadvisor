@@ -30,8 +30,14 @@ from PySide6.QtCore import Signal, Qt
 # Reusable UI components
 from ..ui import SearchBar, EventCard, PageTitle, Muted
 
-GATEWAY_BASE_URL = "http://127.0.0.1:9000"  # BFF/Gateway origin
+import os
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
+GATEWAY_BASE_URL = os.getenv("GATEWAY_BASE_URL", "http://127.0.0.1:9000")
 
 class SearchView(QWidget):
     # Emits search text + filters dict (if other views want to listen)
@@ -98,7 +104,7 @@ class SearchView(QWidget):
         You can switch endpoint here if your BFF shape changes.
         """
         # Option A: dedicated BFF feed (flattened items)
-        url = f"{GATEWAY_BASE_URL}/bff/home/feed"
+        url = f"{GATEWAY_BASE_URL}/events/search"
         params = {"q": q or None, "category": None, "page": 1, "limit": 12}
 
         try:
