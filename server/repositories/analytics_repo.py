@@ -1,32 +1,37 @@
+# server/repositories/analytics_repo.py
 from __future__ import annotations
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 class AnalyticsRepo:
     def totals(self, db: Session):
-        row = db.execute("SELECT * FROM v_analytics_totals").fetchone()
-        return {
-            "total_users": row.total_users if row else 0,
-            "total_events": row.total_events if row else 0,
-            "total_registrations_confirmed": row.total_registrations_confirmed if row else 0,
-            "total_waitlist": row.total_waitlist if row else 0,
-            "total_likes": row.total_likes if row else 0,
-            "total_saves": row.total_saves if row else 0,
-        }
+        row = db.execute(text("SELECT * FROM v_analytics_totals")).mappings().fetchone()
+        if not row:
+            return {
+                "total_users": 0,
+                "total_events": 0,
+                "total_registrations_confirmed": 0,
+                "total_waitlist": 0,
+                "total_likes": 0,
+                "total_saves": 0,
+                # אופציונלי: capacity_sum, revenue_sum...
+            }
+        return dict(row)
 
     def by_month(self, db: Session):
-        rows = db.execute("SELECT * FROM v_analytics_by_month").fetchall()
-        return [dict(r._mapping) for r in rows]
+        rows = db.execute(text("SELECT * FROM v_analytics_by_month")).mappings().all()
+        return [dict(r) for r in rows]
 
     def by_category(self, db: Session):
-        rows = db.execute("SELECT * FROM v_analytics_by_category").fetchall()
-        return [dict(r._mapping) for r in rows]
+        rows = db.execute(text("SELECT * FROM v_analytics_by_category")).mappings().all()
+        return [dict(r) for r in rows]
 
     def by_event(self, db: Session):
-        rows = db.execute("SELECT * FROM v_analytics_by_event").fetchall()
-        return [dict(r._mapping) for r in rows]
+        rows = db.execute(text("SELECT * FROM v_analytics_by_event")).mappings().all()
+        return [dict(r) for r in rows]
 
     def utilization(self, db: Session):
-        rows = db.execute("SELECT * FROM v_analytics_utilization").fetchall()
-        return [dict(r._mapping) for r in rows]
+        rows = db.execute(text("SELECT * FROM v_analytics_utilization")).mappings().all()
+        return [dict(r) for r in rows]
 
 repo_analytics = AnalyticsRepo()

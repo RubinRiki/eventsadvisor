@@ -1,30 +1,28 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from server.core.deps import get_db, get_current_user
-from server.models.user import UserPublic as User
-from server.models.analytics import (
-    AnalyticsSummary,
-    DashboardTotals,
-    ByMonthItem,
-    ByCategoryItem,
-    ByEventItem,
-)
-from server.repositories.analytics_repo import repo_analytics
+# gateway/api/analytics.py
+from fastapi import APIRouter, HTTPException, Request
+import os, requests
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-@router.get("/summary", response_model=AnalyticsSummary)
-def get_summary(
-    _: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    totals = repo_analytics.totals(db)
-    by_month = repo_analytics.by_month(db)
-    by_category = repo_analytics.by_category(db)
-    by_event = repo_analytics.by_event(db)
-    return AnalyticsSummary(
-        totals=DashboardTotals(**totals),
-        by_month=[ByMonthItem(**row) for row in by_month],
-        by_category=[ByCategoryItem(**row) for row in by_category],
-        top_events=[ByEventItem(**row) for row in by_event],
-    )
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "http://127.0.0.1:8000")
+TIMEOUT = int(os.getenv("SERVER_TIMEOUT", "15"))
+
+def _headers(req: Request) -> dict:
+    h = {}
+    if "authorization" in req.headers:
+        h["authorization"] = req.headers["authorization"]
+    if "x-request-id" in req.headers:
+        h["x-request-id"] = req.headers["x-request-id"]
+    return h
+
+@router.get("/summary")
+def proxy_analytics_summary(request: Request):
+    try:
+        r = requests.get(f"{SERVER_BASE_URL}/analytics/summary",
+                         headers=_headers(request), timeout=TIMEOUT)
+        r.raise_for_status()
+        return r.json()
+    except requests.HTTPError:
+        raise HTTPException(status_code=r.status_code, detail=r.text)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gateway failed: {e}")

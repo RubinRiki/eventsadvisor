@@ -1,109 +1,127 @@
+# client/views/charts_view.py
 # -*- coding: utf-8 -*-
-# ================================================================
-#  EventHub Client — views/charts_view.py
-#  Created by: Riki Rubin & Hadas Donat
-# ================================================================
-"""
-📌 Purpose (Explanation Box)
-Charts/Analytics view that shows a simple demo:
-- Left: a line chart (QtCharts) with fixed sample data.
-- Right: a table synchronized with the same data.
-- Uses UI building blocks (Card, PageTitle, SectionTitle, Muted).
-
-Notes:
-- Imports are package-relative (from ..ui ...) so running with
-  `python -m client.app` works without import errors.
-- Feel free to replace the demo data with real analytics from the API.
-"""
+from typing import List, Dict, Any, Optional
+import os, requests
 
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
+    QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QLabel
 )
-from PySide6.QtCore import QPointF
+from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
 
-# ✅ Bring the UI components from the client UI package
 from ..ui import Card, PageTitle, SectionTitle, Muted
 
+GATEWAY_BASE_URL = os.getenv("GATEWAY_BASE_URL", "http://127.0.0.1:9000")
 
 class ChartsView(QWidget):
+    _dataReady = Signal(dict)
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # Root layout
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 28, 16, 16)
         root.setSpacing(12)
 
-        # Title + subtitle
         root.addWidget(PageTitle("נתונים חזותיים"))
-        root.addWidget(Muted("דמו עיצוב: גרף קו + טבלה מסונכרנת."))
+        root.addWidget(Muted("סיכום מקורות: לפי חודש + טופ אירועים."))
 
-        row = QHBoxLayout()
-        row.setSpacing(12)
+        row = QHBoxLayout(); row.setSpacing(12)
 
-        # -----------------
-        # Chart (left card)
-        # -----------------
-        graph_card = Card()
-        gl = QVBoxLayout(graph_card)
-        gl.setContentsMargins(16, 16, 16, 16)
-        gl.setSpacing(8)
-        gl.addWidget(SectionTitle("ביצועים (דמו)"))
+        # Chart card
+        self.graph_card = Card()
+        gl = QVBoxLayout(self.graph_card); gl.setContentsMargins(16,16,16,16); gl.setSpacing(8)
+        gl.addWidget(SectionTitle("רישומים לפי חודש"))
+        self.chart_view = QChartView(QChart())
+        gl.addWidget(self.chart_view, 1)
+        row.addWidget(self.graph_card, 1)
 
-        # Demo data
+        # Table card
+        self.table_card = Card()
+        tl = QVBoxLayout(self.table_card); tl.setContentsMargins(16,16,16,16); tl.setSpacing(8)
+        tl.addWidget(SectionTitle("Top Events (Utilization)"))
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["אירוע", "קיבולת", "מאושרים", "% ניצולת"])
+        self.table.setAlternatingRowColors(True)
+        tl.addWidget(self.table, 1)
+        row.addWidget(self.table_card, 1)
+
+        # Loading
+        self._loading = QLabel("טוען…"); self._loading.setAlignment(Qt.AlignCenter); self._loading.setObjectName("LoadingOverlay")
+        root.addLayout(row, 1)
+        root.addWidget(self._loading); self._show_loading(False)
+
+        self._dataReady.connect(self._render)
+        self.reload()
+
+    # ---------- data ----------
+    def _headers(self) -> dict:
+        h = {}
+        tok = os.getenv("AUTH_TOKEN")
+        if tok:
+            h["Authorization"] = f"Bearer {tok}"
+        return h
+
+    def _fetch(self) -> dict:
+        try:
+            r = requests.get(f"{GATEWAY_BASE_URL}/analytics/summary",
+                             headers=self._headers(), timeout=12)
+            r.raise_for_status()
+            return r.json() or {}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def reload(self):
+        # אפשר פשוט לקרוא סינכרוני (זה קליל), אבל נוסיף “טוען…”
+        self._show_loading(True)
+        data = self._fetch()
+        self._dataReady.emit(data)
+
+    # ---------- render ----------
+    def _show_loading(self, on: bool):
+        self._loading.setVisible(on)
+        self.graph_card.setDisabled(on); self.table_card.setDisabled(on)
+
+    def _render(self, data: dict):
+        self._show_loading(False)
+        if "error" in data:
+            self._render_error(data["error"])
+            return
+
+        # 1) גרף לפי חודש: ByMonth.points -> x=חודש כרונולוגי, y=registrations
         series = QLineSeries()
-        data = [(1, 12), (2, 15), (3, 8), (4, 18), (5, 14), (6, 20), (7, 16)]
-        for x, y in data:
-            series.append(QPointF(x, y))
+        points = data.get("by_month", [])
+        # למיין לפי month "YYYY-MM"
+        def _mkey(p): return p.get("month","0000-00")
+        points = sorted(points, key=_mkey)
+        for idx, p in enumerate(points, start=1):
+            y = int(p.get("registrations", 0))
+            series.append(QPointF(idx, y))
 
         chart = QChart()
         chart.addSeries(series)
-        chart.createDefaultAxes()
-        chart.axisX().setTitleText("יום")
-        chart.axisY().setTitleText("ערך")
-        chart.setTitle("גרף קו (דמו)")
-        chart.legend().hide()
+        axX = QValueAxis(); axX.setRange(1, max(1, len(points))); axX.setTickCount(max(2, len(points)))
+        axY = QValueAxis(); axY.setRange(0, max([int(p.get("registrations",0)) for p in points] + [1]))
+        chart.setAxisX(axX, series); chart.setAxisY(axY, series)
+        chart.legend().hide(); chart.setTitle("Registrations per Month")
+        self.chart_view.setChart(chart)
 
-        # Explicit axes setup
-        axX = QValueAxis()
-        axX.setRange(1, 7)
-        axX.setTickCount(7)
+        # 2) טבלת טופ אירועים לפי ניצולת
+        top = data.get("top_events", [])
+        self.table.setRowCount(len(top))
+        for r, ev in enumerate(top):
+            title = str(ev.get("title",""))
+            cap   = int(ev.get("capacity", 0))
+            conf  = int(ev.get("confirmed", 0))
+            util  = float(ev.get("utilization_pct", 0.0))
+            self.table.setItem(r, 0, QTableWidgetItem(title))
+            self.table.setItem(r, 1, QTableWidgetItem(str(cap)))
+            self.table.setItem(r, 2, QTableWidgetItem(str(conf)))
+            self.table.setItem(r, 3, QTableWidgetItem(f"{util:.0f}%"))
+        self.table.resizeColumnsToContents()
 
-        axY = QValueAxis()
-        axY.setRange(0, 22)
-
-        chart.setAxisX(axX, series)
-        chart.setAxisY(axY, series)
-
-        chart_view = QChartView(chart)
-        gl.addWidget(chart_view, 1)
-        row.addWidget(graph_card, 1)
-
-        # ------------------
-        # Table (right card)
-        # ------------------
-        table_card = Card()
-        tl = QVBoxLayout(table_card)
-        tl.setContentsMargins(16, 16, 16, 16)
-        tl.setSpacing(8)
-        tl.addWidget(SectionTitle("טבלה"))
-
-        table = QTableWidget(len(data), 2)
-        table.setHorizontalHeaderLabels(["יום", "ערך"])
-        table.setAlternatingRowColors(True)
-
-        for r, (x, y) in enumerate(data):
-            table.setItem(r, 0, QTableWidgetItem(str(x)))
-            table.setItem(r, 1, QTableWidgetItem(str(y)))
-
-        table.resizeColumnsToContents()
-        tl.addWidget(table, 1)
-
-        # Assemble row
-        row.addWidget(table_card, 1)
-        root.addLayout(row, 1)
+    def _render_error(self, msg: str):
+        chart = QChart(); chart.setTitle("שגיאה בטעינת נתונים")
+        self.chart_view.setChart(chart)
+        self.table.setRowCount(1)
+        self.table.setItem(0,0,QTableWidgetItem("שגיאה")); self.table.setItem(0,1,QTableWidgetItem(msg))
