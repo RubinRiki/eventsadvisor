@@ -16,11 +16,13 @@ from PySide6.QtWidgets import QApplication
 
 # ✅ Relative import so `python -m client.app` works reliably
 from .app_shell import AppShell
+from .core.theme.style_manager import apply_styles 
 
 
 def main() -> int:
     """Bootstraps the Qt application and launches the main shell window."""
     app = QApplication(sys.argv)   # create Qt application (event loop manager)
+    apply_styles(app)    
     win = AppShell(app)            # create main window (shell)
     win.show()                     # show window
     return app.exec()              # start event loop

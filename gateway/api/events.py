@@ -15,13 +15,17 @@ def _headers(req: Request) -> dict:
         h["x-request-id"] = req.headers["x-request-id"]
     return h
 
+# gateway/api/events.py
 @router.get("/search")
 def proxy_events_search(request: Request,
                         q: str | None = None,
                         category: str | None = None,
+                        from_date: str | None = None,   # ← חדש
+                        to_date: str | None = None,     # ← חדש
                         page: int = 1,
                         limit: int = 12):
-    params = {"q": q, "category": category, "page": page, "limit": limit}
+    params = {"q": q, "category": category, "page": page, "limit": limit,
+              "from_date": from_date, "to_date": to_date}  # ← יעבור הלאה
     try:
         r = requests.get(f"{SERVER_BASE_URL}/events/search",
                          params=params, headers=_headers(request), timeout=TIMEOUT)
