@@ -18,6 +18,8 @@ def _to_iso(dt: datetime | None) -> str | None:
 def _to_float(x):
     return float(x) if isinstance(x, Decimal) else (x if x is None else float(x))
 
+# ... למעלה בלי שינוי ...
+
 @router.get("/search")
 def search_events(
     q: str | None = Query(None, description="free text: title/city/venue"),
@@ -29,17 +31,27 @@ def search_events(
     page = max(page, 1)
     limit = max(min(limit, 100), 1)
 
-    stmt = select(EventDB)
+    # 1) בונים WHERE בנפרד בלי ORDER BY
+    base = select(EventDB)
     if q:
         like = f"%{q}%"
-        stmt = stmt.where(or_(EventDB.Title.ilike(like), EventDB.City.ilike(like), EventDB.Venue.ilike(like)))
+        base = base.where(
+            or_(
+                EventDB.Title.ilike(like),
+                EventDB.City.ilike(like),
+                EventDB.Venue.ilike(like),
+            )
+        )
     if category:
-        stmt = stmt.where(EventDB.Category == category)
+        base = base.where(EventDB.Category == category)
 
-    # חשוב ל-MSSQL: סדר לפני OFFSET/LIMIT
-    stmt = stmt.order_by(EventDB.CreatedAt.desc(), EventDB.Id.desc())
+    # 2) COUNT ללא ORDER BY (חשוב!)
+    total = db.execute(
+        select(func.count()).select_from(base.subquery())
+    ).scalar_one()
 
-    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    # 3) מיון רק לשאילתת הדף
+    stmt = base.order_by(EventDB.CreatedAt.desc(), EventDB.Id.desc())
 
     offset = (page - 1) * limit
     rows = db.execute(stmt.offset(offset).limit(limit)).scalars().all()
@@ -51,7 +63,7 @@ def search_events(
             "title": getattr(e, "Title", None),
             "city": getattr(e, "City", None),
             "venue": getattr(e, "Venue", None),
-            "starts_at": _to_iso(getattr(e, "starts_at", None)),  # ← כבר ממירים למחרוזת
+            "starts_at": _to_iso(getattr(e, "starts_at", None)), 
             "price": _to_float(getattr(e, "Price", None)),
             "image_url": getattr(e, "image_url", None),
         })
