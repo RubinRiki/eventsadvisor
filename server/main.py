@@ -10,7 +10,9 @@ from server.api import (
     analytics,
     ai,
     health,
+    users ,    
 )
+
 from server.core.config import settings
 
 app = FastAPI(title="EventHub API", version="1.0.0")
@@ -32,3 +34,4 @@ app.include_router(registrations.router)
 app.include_router(agent_requests.router)
 app.include_router(reactions.router)
 app.include_router(analytics.router)
+app.include_router(users.router) 

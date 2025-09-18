@@ -12,7 +12,9 @@ from server.repositories.analytics_repo import repo_analytics
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-def _to_int(x): 
+
+# ---------- helpers ----------
+def _to_int(x):
     if x is None: return 0
     if isinstance(x, Decimal): return int(x)
     try: return int(x)
@@ -24,14 +26,25 @@ def _to_float(x):
     try: return float(x)
     except Exception: return 0.0
 
+def _as_percent(x) -> float:
+    """Normalize fraction (0..1) to percent (0..100). Leave >1 as-is."""
+    val = _to_float(x)
+    if val <= 1.0 and val >= 0.0:
+        return val * 100.0
+    return val
+
+
+# ---------- mappers ----------
 def _map_totals(raw: dict) -> DashboardTotals:
+    # capacity_utilization_pct עשוי להגיע כשבר (0..1) מה-View => ננרמל לאחוזים
+    cap_util = _as_percent(raw.get("capacity_utilization_pct"))
     return DashboardTotals(
         events_published         = _to_int(raw.get("total_events")),
         registrations_total      = _to_int(raw.get("total_registrations_confirmed")) + _to_int(raw.get("total_waitlist")),
         registrations_confirmed  = _to_int(raw.get("total_registrations_confirmed")),
         registrations_waitlist   = _to_int(raw.get("total_waitlist")),
         capacity_sum             = _to_int(raw.get("capacity_sum")),
-        capacity_utilization_pct = _to_float(raw.get("capacity_utilization_pct")),
+        capacity_utilization_pct = cap_util,
         revenue_sum              = (None if raw.get("revenue_sum") is None else _to_float(raw.get("revenue_sum"))),
     )
 
@@ -77,9 +90,11 @@ def _map_by_event(row: dict) -> ByEventItem:
     util  = row.get("utilization_pct")
     rev   = row.get("revenue") if "revenue" in row else row.get("sum_revenue")
 
-    # אם אין אחוז ניצולת מוכן – נחשב על בסיס capacity/confirmed
+    # אם אין אחוז ניצולת מוכן – נחשב; אם הגיע כשבר (0..1) – ננרמל ל-0..100
     if util is None:
-        util = ( (_to_float(conf) / _to_float(cap)) * 100.0 ) if _to_int(cap) > 0 else 0.0
+        util = (_to_float(conf) / _to_float(cap) * 100.0) if _to_int(cap) > 0 else 0.0
+    else:
+        util = _as_percent(util)
 
     return ByEventItem(
         event_id=str(eid),
@@ -91,6 +106,8 @@ def _map_by_event(row: dict) -> ByEventItem:
         revenue=(None if rev is None else _to_float(rev)),
     )
 
+
+# ---------- route ----------
 @router.get("/summary", response_model=AnalyticsSummary)
 def get_summary(db: Session = Depends(get_db)):
     totals      = repo_analytics.totals(db)

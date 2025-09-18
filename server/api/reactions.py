@@ -36,3 +36,11 @@ def list_reactions(
     db: Session = Depends(get_db),
 ):
     return repo_reactions.list_for_event(db, event_id)
+
+@router.get("/me", response_model=List[ReactionPublic])
+def list_my_reactions(
+    type: str = "LIKE",
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return repo_reactions.list_for_user(db, user_id=int(current.id), type=type)

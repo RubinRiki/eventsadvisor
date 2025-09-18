@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, requests, status
 from sqlalchemy.orm import Session
 
 from server.core.deps import get_db, get_current_user
@@ -7,7 +7,13 @@ from server.models.user import UserPublic as User
 from server.models.reaction import ReactionCreate, ReactionPublic
 from server.repositories.reactions_repo import repo_reactions
 
+from fastapi import APIRouter, HTTPException, Request
+import os, requests
+
+
 router = APIRouter(prefix="/reactions", tags=["reactions"])
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "http://127.0.0.1:8000")
+TIMEOUT = int(os.getenv("SERVER_TIMEOUT", "15"))
 
 @router.post("", response_model=ReactionPublic, status_code=status.HTTP_201_CREATED)
 def add_reaction(
@@ -36,3 +42,19 @@ def list_reactions(
     db: Session = Depends(get_db),
 ):
     return repo_reactions.list_for_event(db, event_id)
+
+def _headers(req: Request) -> dict:
+    h = {}
+    if "authorization" in req.headers:
+        h["authorization"] = req.headers["authorization"]
+    return h
+
+@router.get("/me")
+def proxy_my_reactions(request: Request):
+    try:
+        params = dict(request.query_params)
+        r = requests.get(f"{SERVER_BASE_URL}/reactions/me", headers=_headers(request), params=params, timeout=TIMEOUT)
+        r.raise_for_status()
+        return r.json()
+    except requests.HTTPError:
+        raise HTTPException(status_code=r.status_code, detail=r.text)
