@@ -20,6 +20,7 @@ class LoginView(QWidget):
         root.addWidget(Muted("היכנסי עם המשתמש הקיים או צרי חשבון חדש."))
 
         self.tabs = QTabWidget()
+        self.tabs.setObjectName("AuthTabs") 
         self.tabs.setTabPosition(QTabWidget.North)
 
         # --- Tab: Login ---
