@@ -47,5 +47,12 @@ class ReactionsRepo:
                   .order_by(ReactionsDB.CreatedAt.desc())
                   .all())
         return [self._to_public(r) for r in rows]
+    
+    def list_for_user(self, db: Session, user_id: int, type: str | None = None) -> List[ReactionPublic]:
+        q = db.query(ReactionsDB).filter(ReactionsDB.UserId == user_id)
+        if type:
+            q = q.filter(ReactionsDB.type == type)
+        rows = q.order_by(ReactionsDB.CreatedAt.desc()).all()
+        return [self._to_public(r) for r in rows]
 
 repo_reactions = ReactionsRepo()

@@ -1,3 +1,4 @@
+from fastapi import background
 from .palette import Palette as P, Radii as R
 
 BASE_QSS = f"""
@@ -102,16 +103,39 @@ QPushButton#SideItem[current="true"] {{
   color:#111;
 }}
 
-/* ----- Tables ----- */
-QTableWidget {{
-  background: #1b2230;
-  gridline-color: #2a3242;
-  alternate-background-color: #161a22;
-  selection-background-color: #22d3ee;
+/* ----- Tabs ----- */
+QTabWidget#AuthTabs::pane {{
+    border: 1px solid {P.border};
+    border-radius: {R.md}px;
+    background: {P.surface};
+    margin-top: 8px;
 }}
-QHeaderView::section {{
-  background: #2f374f; color: #f5f5f5; padding: 8px 10px; border: 0px;
-  font-weight: 800;
+
+/* טאבים – ברירת מחדל */
+QTabWidget#AuthTabs QTabBar::tab {{
+    color: {P.muted};
+    background: transparent;
+    padding: 8px 16px;
+    margin: 0 6px;
+    border: 1px solid transparent;
+    border-top-left-radius: {R.sm}px;
+    border-top-right-radius: {R.sm}px;
+}}
+
+/* Hover */
+QTabWidget#AuthTabs QTabBar::tab:hover {{
+    color: {P.text};
+    background: #1f2533;
+}}
+
+/* נבחר – עיצוב כמו QPushButton#Primary */
+QTabWidget#AuthTabs QTabBar::tab:selected {{
+    background: {P.accent};
+    color: #111;
+    border: none;
+    border-radius: {R.sm}px;
+    padding: 12px 20px;
+    font-weight: 800;
 }}
 
 """

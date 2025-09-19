@@ -15,16 +15,43 @@ from ..ui import SearchBar, EventCard, PageTitle, Muted
 
 GATEWAY_BASE_URL = os.getenv("GATEWAY_BASE_URL", "http://127.0.0.1:9000")
 
+
 class SearchView(QWidget):
     searchRequested = Signal(str, dict)
     openDetails = Signal(str)
-    _dataReady = Signal(list)  
+    _dataReady = Signal(list)
+
+    _HEB_CITY_MAP = {
+        "תל אביב": "Tel Aviv", "ת״א": "Tel Aviv", "ת\"א": "Tel Aviv",
+        "חיפה": "Haifa",
+        "ירושלים": "Jerusalem",
+        "באר שבע": "Beer Sheva", "ב\"ש": "Beer Sheva",
+        "אשדוד": "Ashdod",
+        "נתניה": "Netanya",
+        "רחובות": "Rehovot",
+        "הרצליה": "Herzliya",
+        "רעננה": "Ra'anana",
+        "מודיעין": "Modi'in",
+        "חולון": "Holon",
+        "בת ים": "Bat Yam",
+        "פתח תקווה": "Petah Tikva",
+        "ראשון לציון": "Rishon LeZion",
+    }
+
+    def _he_city_to_en(self, s: str) -> str:
+        return self._HEB_CITY_MAP.get((s or "").strip(), s)
+
+    def _maybe_translate_query_city(self, q: str) -> str:
+        """אם המשתמש/ת כתבה רק שם עיר בעברית בשדה החיפוש – נמיר לאנגלית כדי שיתפס ב-API."""
+        qs = (q or "").strip()
+        return self._HEB_CITY_MAP.get(qs, q)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 28, 16, 16); root.setSpacing(12)
+        root.setContentsMargins(16, 28, 16, 16)
+        root.setSpacing(12)
 
         root.addWidget(PageTitle("חיפוש אירועים"))
         root.addWidget(Muted("מצאי/מצא במהירות לפי שם אמן, עיר או אולם."))
@@ -32,12 +59,19 @@ class SearchView(QWidget):
         # חיפוש
         self.searchbar = SearchBar("שם אמן / עיר / אולם")
         self.searchbar.btn.clicked.connect(self._on_search_clicked)
+        # Enter מפעיל חיפוש
+        try:
+            self.searchbar.q.returnPressed.connect(self._on_search_clicked)
+        except Exception:
+            pass
         root.addWidget(self.searchbar)
 
-        pills = QHBoxLayout(); pills.setSpacing(6)
+        # פילטרים מהירים (טווחי תאריכים)
+        pills = QHBoxLayout()
+        pills.setSpacing(6)
         self.btn_today    = self._make_pill("היום")
         self.btn_tomorrow = self._make_pill("מחר")
-        self.btn_weekend  = self._make_pill('סופ"ש')
+        self.btn_weekend  = self._make_pill("סופ\"ש")
         for b in (self.btn_today, self.btn_tomorrow, self.btn_weekend):
             pills.addWidget(b)
         pills.addStretch(1)
@@ -49,10 +83,12 @@ class SearchView(QWidget):
         self._active_range: Optional[tuple[str, str]] = None  # (from_date, to_date)
 
         # אזור תוצאות
-        self.scroll = QScrollArea(); self.scroll.setWidgetResizable(True)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
         self._content = QWidget()
         self._grid = QGridLayout(self._content)
-        self._grid.setSpacing(12); self._grid.setContentsMargins(4,4,4,4)
+        self._grid.setSpacing(12)
+        self._grid.setContentsMargins(4, 4, 4, 4)
         self.scroll.setWidget(self._content)
         root.addWidget(self.scroll, 1)
 
@@ -69,6 +105,7 @@ class SearchView(QWidget):
         # טעינת ברירת מחדל
         self._load_and_render()
 
+    # ---------- UI helpers ----------
     def _make_pill(self, text: str) -> QPushButton:
         b = QPushButton(text)
         b.setObjectName("Pill")
@@ -76,52 +113,6 @@ class SearchView(QWidget):
         b.setAutoExclusive(True)
         return b
 
-    # === אירועים ===
-    def _on_search_clicked(self) -> None:
-        q = self.searchbar.q.text().strip()
-        filters = {"city": self.searchbar.city.currentText()}
-        
-        self._active_range = None
-        for b in (self.btn_today, self.btn_tomorrow, self.btn_weekend):
-            b.setChecked(False)
-        self.searchRequested.emit(q, filters)
-        self._load_and_render(q, filters)
-
-    def _on_quick_date(self, which: str) -> None:
-        today = datetime.now().date()
-        if which == "today":
-            f=t=today
-        elif which == "tomorrow":
-            f=t=today.replace(day=today.day) + timedelta(days=1)
-        else:
-            # Fri-Sat
-            delta_to_fri = (4 - today.weekday()) % 7
-            fri = today + timedelta(days=delta_to_fri)
-            sat = fri + timedelta(days=1)
-            f, t = fri, sat
-        self._active_range = (f.isoformat(), t.isoformat())
-
-        q = self.searchbar.q.text().strip()
-        filters = {"city": self.searchbar.city.currentText()}
-        self.searchRequested.emit(q, filters)
-        self._load_and_render(q, filters)
-
-    # === Data ===
-    def _fetch_events(self, q: str = "", filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        url = f"{GATEWAY_BASE_URL}/events/search"
-        params = {"q": q or None, "category": None, "page": 1, "limit": 12}
-        if self._active_range:
-            params["from_date"], params["to_date"] = self._active_range
-        try:
-            r = requests.get(url, params=params, timeout=10)
-            r.raise_for_status()
-            data = r.json() or {}
-            return data.get("items", [])
-        except Exception as e:
-            print("⚠️ Error fetching events from Gateway:", e)
-            return []
-
-    # === Rendering ===
     def _show_loading(self, on: bool) -> None:
         self._loading.setVisible(on)
         self.scroll.setDisabled(on)
@@ -134,20 +125,103 @@ class SearchView(QWidget):
                 w.setParent(None)
 
     def _safe_date(self, starts_at: Optional[str]) -> str:
-        if not starts_at: return ""
+        if not starts_at:
+            return ""
         try:
-            dt = datetime.fromisoformat(str(starts_at).replace("Z","+00:00"))
+            dt = datetime.fromisoformat(str(starts_at).replace("Z", "+00:00"))
             return dt.strftime("%d/%m")
         except Exception:
             s = str(starts_at)[:10]
-            if len(s)==10 and s[4]=="-" and s[7]=="-":
-                y,m,d = s.split("-")
+            if len(s) == 10 and s[4] == "-" and s[7] == "-":
+                y, m, d = s.split("-")
                 return f"{d}/{m}"
             return s
 
+    # ---------- Events ----------
+    def _on_search_clicked(self) -> None:
+        q = self.searchbar.q.text().strip()
+        filters = {"city": self.searchbar.city.currentText()}
+
+        # איפוס טווח תאריכים כשעושים חיפוש חופשי
+        self._active_range = None
+        for b in (self.btn_today, self.btn_tomorrow, self.btn_weekend):
+            b.setChecked(False)
+            b.setToolTip("")
+
+        self.searchRequested.emit(q, filters)
+        self._load_and_render(q, filters)
+
+    def _on_quick_date(self, which: str) -> None:
+        today = datetime.now().date()
+
+        if which == "today":
+            f = t = today
+            self.btn_today.setChecked(True)
+            self.btn_tomorrow.setChecked(False)
+            self.btn_weekend.setChecked(False)
+        elif which == "tomorrow":
+            f = t = today + timedelta(days=1)
+            self.btn_today.setChecked(False)
+            self.btn_tomorrow.setChecked(True)
+            self.btn_weekend.setChecked(False)
+        else:
+            # סוף שבוע הקרוב (ו'–ש')
+            delta_to_fri = (4 - today.weekday()) % 7
+            fri = today + timedelta(days=delta_to_fri)
+            sat = fri + timedelta(days=1)
+            f, t = fri, sat
+            self.btn_today.setChecked(False)
+            self.btn_tomorrow.setChecked(False)
+            self.btn_weekend.setChecked(True)
+
+        self._active_range = (f.isoformat(), t.isoformat())
+        for b in (self.btn_today, self.btn_tomorrow, self.btn_weekend):
+            if b.isChecked():
+                b.setToolTip(f"{self._active_range[0]} → {self._active_range[1]}")
+
+        # חיפוש מחדש עם העיר הנוכחית
+        q = self.searchbar.q.text().strip()
+        filters = {"city": self.searchbar.city.currentText()}
+        self.searchRequested.emit(q, filters)
+        self._load_and_render(q, filters)
+
+    # ---------- Data ----------
+    def _fetch_events(self, q: str = "", filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        url = f"{GATEWAY_BASE_URL}/events/search"
+        params: Dict[str, Any] = {
+            "q": q or None,
+            "page": 1,
+            "limit": 12,
+        }
+
+        # מיזוג פילטרים (למשל עיר)
+        if filters:
+            for k, v in filters.items():
+                if v is None:
+                    continue
+                vs = str(v).strip()
+                if not vs or vs in ("הכל", "כל הערים"):
+                    continue
+                params[k] = vs
+
+        # טווח תאריכים מהפילטרים המהירים
+        if self._active_range:
+            params["from_date"], params["to_date"] = self._active_range
+
+        try:
+            r = requests.get(url, params=params, timeout=10)
+            r.raise_for_status()
+            data = r.json() or {}
+            return data.get("items", [])
+        except Exception as e:
+            print("⚠️ Error fetching events from Gateway:", e)
+            return []
+
+    # ---------- Rendering ----------
     def _render_events(self, events: List[Dict[str, Any]]) -> None:
         self._show_loading(False)
         self._clear_grid()
+
         if not events:
             empty = QLabel("לא נמצאו אירועים תואמים ✨")
             empty.setAlignment(Qt.AlignCenter)
@@ -161,21 +235,25 @@ class SearchView(QWidget):
             venue = ev.get("venue") or city
             date  = self._safe_date(ev.get("starts_at"))
             pv    = ev.get("price")
-            price = f"₪{int(pv)}" if isinstance(pv,(int,float)) else ""
+            price = f"₪{int(pv)}" if isinstance(pv, (int, float)) else ""
+
             card = EventCard(title=title, venue=venue, date=date, price=price)
 
             ev_id = ev.get("id")
             if ev_id is not None:
+                # capture eid כערך ברירת מחדל למניעת בעיית לולאה
                 card.details_button.clicked.connect(
                     lambda _, eid=str(ev_id): self.openDetails.emit(eid)
                 )
-            self._grid.addWidget(card, i//3, i%3)
 
-    # === Orchestration ===
+            self._grid.addWidget(card, i // 3, i % 3)
+
+    # ---------- Orchestration ----------
     def _load_and_render(self, q: str = "", filters: Optional[Dict[str, Any]] = None) -> None:
         self._show_loading(True)
-        # טעינה ברקע כדי שה-UI לא "ייתקע"
+
         def _work():
             evs = self._fetch_events(q, filters)
             self._dataReady.emit(evs)
+
         Thread(target=_work, daemon=True).start()
