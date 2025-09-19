@@ -13,7 +13,7 @@ class SearchBar(QWidget):
         self.q = QLineEdit(self)
         self.q.setPlaceholderText(placeholder)
         self.city = QComboBox(self)
-        self.city.addItems(["כל הערים", "ירושלים", "ת״א", "חיפה"])
+        self.city.addItems(["כל הערים", "Jerusalem", "Tel Aviv", "Haifa"])
 
         self.btn = QPushButton("חפש")
         self.btn.setObjectName("Primary")

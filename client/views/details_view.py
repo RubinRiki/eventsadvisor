@@ -1,4 +1,5 @@
 # client/views/details_view.py
+# -*- coding: utf-8 -*-
 import os, requests
 from threading import Thread
 from datetime import datetime
@@ -20,70 +21,91 @@ class DetailsView(QWidget):
     - כרטיס "על האירוע" עם תיאור
     - פעולות: קנייה / שיתוף / לייק (Toggle)
     - טעינה אסינכרונית מ-Gateway
-    - כל עדכון UI ב-GUI Thread (Signals/Slots)
     """
+
     # אותות בין threads ל-GUI:
-    _dataReady = Signal(dict)                            # נתוני אירוע
-    _likeState = Signal(dict)                            # {"phase": "loading|liked|unliked|error", "code": int|None, "msg": str|None}
-    _notify    = Signal(str, str, int)                   # title, text, icon (QMessageBox.Icon.value)
+    _dataReady = Signal(dict)   # נתוני אירוע
+    _likeState = Signal(dict)   # {"phase": "loading|liked|unliked|error", "code": int|None, "msg": str|None}
+    _notify    = Signal(str, str, int)  # title, text, icon (QMessageBox.Icon.value)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setLayoutDirection(Qt.RightToLeft)
 
-        # ---- שורש עמוד: צפוף ----
+        # ===== שורש העמוד – מרווחים מינימליים =====
         root = QVBoxLayout(self)
-        root.setContentsMargins(12, 16, 12, 12)
-        root.setSpacing(6)
+        root.setContentsMargins(10, 10, 10, 10)   
+        root.setSpacing(4)
 
-        # ---- כותרות ----
+        # ===== כותרות – טקסט מעט גדול ומרווח קטן =====
         self.title = PageTitle("שם אירוע · דמו")
+        self.title.setStyleSheet("font-size: 20px; margin-bottom: 2px;")
         self.meta  = Muted("מיקום · תאריך · מחיר")
+        self.meta.setStyleSheet("font-size: 13px;")
+
         root.addWidget(self.title)
         root.addWidget(self.meta)
 
-        # ---- כרטיס מידע ----
+        # ===== כרטיס מידע – מרווחים קטנים =====
         info = Card()
-        il = QVBoxLayout(info); il.setContentsMargins(12, 12, 12, 12); il.setSpacing(4)
+        il = QVBoxLayout(info)
+        il.setContentsMargins(10, 10, 10, 10)   # קומפקטי
+        il.setSpacing(4)
         il.addWidget(SectionTitle("על האירוע"))
+
         self.desc  = Muted("תיאור קצר של האירוע…")
+        self.desc.setStyleSheet("font-size: 13px;")
         self.extra = QLabel("")            # פרטים משלימים דחוסים
         self.extra.setObjectName("DimText")
+        self.extra.setStyleSheet("font-size: 12px;")
+
         il.addWidget(self.desc)
         il.addWidget(self.extra)
         root.addWidget(info)
 
-        # ---- פעולות ----
-        cta = QHBoxLayout(); cta.setSpacing(6)
+        # ===== פעולות – קומפקטי, מיושר לימין =====
+        cta = QHBoxLayout()
+        cta.setSpacing(6)
         self.btn_buy   = QPushButton("המשך להזמנה"); self.btn_buy.setObjectName("Primary")
         self.btn_share = QPushButton("שתף");         self.btn_share.setObjectName("Secondary")
         self.btn_like  = QPushButton("❤️ לייק");     self.btn_like.setObjectName("Secondary")
-        cta.addWidget(self.btn_buy); cta.addWidget(self.btn_share); cta.addWidget(self.btn_like); cta.addStretch(1)
+        self.btn_like.setStyleSheet("color: white;")  # שיראו בבירור
+
+        cta.addWidget(self.btn_buy)
+        cta.addWidget(self.btn_share)
+        cta.addWidget(self.btn_like)
+        cta.addStretch(1)   # רווח שמאלה (RTL)
         root.addLayout(cta)
 
-        # ---- טעינה ----
+        # ===== טעינה =====
         self._loading = QLabel("טוען…")
         self._loading.setAlignment(Qt.AlignCenter)
         self._loading.setObjectName("LoadingOverlay")
+        self._show_loading(False)  # מוסתר כברירת מחדל
         root.addWidget(self._loading)
-        self._show_loading(False)
 
-        # ---- מצב ----
+        # ===== מצב =====
         self._event_id: int | None = None
         self._liked: bool = False
 
-        # ---- wiring ----
+        # ===== wiring =====
         self._dataReady.connect(self._apply_event)
         self._likeState.connect(self._on_like_state)
         self._notify.connect(self._on_notify)
         self.btn_like.clicked.connect(self._handle_like_clicked)
 
+        # שמירה על תוכן “למעלה”, בלי “בטן” ריקה באמצע
+        # (הפריסה כבר דוחפת מלמעלה; אין צורך ב-stretch בסוף)
+
     # ==========================
     # Utils
     # ==========================
-    def _show_loading(self, on: bool): self._loading.setVisible(on)
+    def _show_loading(self, on: bool):
+        self._loading.setVisible(on)
 
     def _fmt_date(self, iso: str | None) -> str:
-        if not iso: return ""
+        if not iso:
+            return ""
         try:
             dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
             return dt.strftime("%d/%m/%Y")
@@ -92,8 +114,9 @@ class DetailsView(QWidget):
 
     def _headers(self) -> dict:
         h = {}
-        tok = os.getenv("AUTH_TOKEN")  # חייב להיות Bearer <JWT>
-        if tok: h["Authorization"] = tok
+        tok = os.getenv("AUTH_TOKEN")  # Bearer <JWT>
+        if tok:
+            h["Authorization"] = tok
         return h
 
     # ==========================
@@ -136,9 +159,9 @@ class DetailsView(QWidget):
         pv    = data.get("price")
         price = f" · החל מ־₪{int(pv)}" if isinstance(pv, (int, float)) else ""
 
-        location  = " · ".join(x for x in [venue, city] if x)
-        meta      = " · ".join(x for x in [location or None, date or None] if x) + price
-        desc      = data.get("description") or "—"
+        location = " · ".join(x for x in [venue, city] if x)
+        meta     = " · ".join(x for x in [location or None, date or None] if x) + price
+        desc     = data.get("description") or "—"
 
         extra_fields = []
         if venue: extra_fields.append(f"אולם: {venue}")
@@ -148,8 +171,10 @@ class DetailsView(QWidget):
         extra_txt = " | ".join(extra_fields)
 
         if data.get("id"):
-            try: self._event_id = int(data["id"])
-            except Exception: pass
+            try:
+                self._event_id = int(data["id"])
+            except Exception:
+                pass
 
         self.set_event(title, meta, desc, extra=extra_txt)
         self._show_loading(False)
@@ -168,7 +193,7 @@ class DetailsView(QWidget):
         headers = self._headers()
 
         def _work():
-            # ננסה לבדוק אם כבר יש לייק לאירוע הזה
+            # נבדוק אם כבר יש לייק לאירוע הזה
             try:
                 url = f"{GATEWAY_BASE_URL}/reactions/me"
                 params = {"type": "LIKE", "event_id": self._event_id}
@@ -192,9 +217,8 @@ class DetailsView(QWidget):
     def _handle_like_clicked(self):
         if not self._event_id:
             return
-        # Toggle: אם כרגע לייק -> ננסה לבטל; אחרת נעשה לייק
+        # Toggle: אם כרגע לייק -> נבטל; אחרת נעשה לייק
         self._likeState.emit({"phase": "loading", "code": None, "msg": None})
-
         if self._liked:
             self._do_unlike()
         else:
@@ -206,7 +230,7 @@ class DetailsView(QWidget):
                 payload = {"event_id": self._event_id, "type": "LIKE"}
                 r = requests.post(f"{GATEWAY_BASE_URL}/reactions",
                                   headers=self._headers(), json=payload, timeout=10)
-                # 200/201/204 = הצלחה; 409 (כבר קיים) נתייחס כהצלחה כדי לנעול כפתור
+                # 200/201/204 = הצלחה; 409 (כבר קיים) נחשב כהצלחה
                 if r.status_code in (200, 201, 204, 409):
                     self._likeState.emit({"phase": "liked", "code": None, "msg": None})
                 else:
@@ -221,20 +245,15 @@ class DetailsView(QWidget):
     def _do_unlike(self):
         def _work():
             try:
-                # תמיכה ב-DELETE עם גוף/פרמטרים—תלוי מימוש ה-Gateway שלך:
-                # ננסה קודם עם DELETE JSON; אם לא נתמך—ננסה querystring.
                 headers = self._headers()
                 url = f"{GATEWAY_BASE_URL}/reactions"
                 try:
                     r = requests.delete(url, headers=headers, json={"event_id": self._event_id, "type": "LIKE"}, timeout=10)
                 except TypeError:
-                    # חלק מהשרתים לא מקבלים json ב-DELETE—Fallback לפרמטרים
                     r = requests.delete(url, headers=headers, params={"event_id": self._event_id, "type": "LIKE"}, timeout=10)
 
-                if r.status_code in (200, 204):
-                    self._likeState.emit({"phase": "unliked", "code": None, "msg": None})
-                elif r.status_code == 404:
-                    # לא היה לייק? מבחינת UI נחזיר ל-unliked
+                if r.status_code in (200, 204, 404):
+                    # גם אם 404 (לא היה לייק) – מבחינת UI אנחנו "לא אוהבים"
                     self._likeState.emit({"phase": "unliked", "code": None, "msg": None})
                 else:
                     self._likeState.emit({"phase": "error", "code": r.status_code, "msg": r.text or "ביטול לייק נכשל"})
@@ -286,7 +305,6 @@ class DetailsView(QWidget):
                     msg or (f"שגיאה (HTTP {code}) בפעולת לייק"),
                     QMessageBox.Icon.Warning.value
                 )
-            # אם לא ידוע המצב—נחזיר ל-unliked
             if not self._liked:
                 self.btn_like.setText("❤️ לייק")
 
