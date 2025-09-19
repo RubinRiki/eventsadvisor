@@ -1,16 +1,12 @@
 # client/views/consult_view.py
-import os, requests, asyncio
+import asyncio
+import requests
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QScrollArea,
-    QFrame,
-    QLabel,
-    QLineEdit,
-    QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
+    QFrame, QLabel, QLineEdit, QPushButton
 )
 from PySide6.QtCore import Qt
+
 from ..ui import PageTitle, Muted
 
 
@@ -33,7 +29,7 @@ class ConsultView(QWidget):
         root.setContentsMargins(16, 28, 16, 16)
         root.setSpacing(12)
         root.addWidget(PageTitle("ייעוץ עם הסוכן"))
-        root.addWidget(Muted("שוחחי עם הבוט וקבלי תשובות חכמות מבוססות AI."))
+        root.addWidget(Muted("צ׳אט בזמן אמת מול ה־AI."))
 
         # Scrollable chat area
         self.scroll = QScrollArea()
@@ -56,13 +52,13 @@ class ConsultView(QWidget):
         row.addWidget(send)
         root.addLayout(row)
 
-        # הודעת פתיחה מהבוט
-        self.add_bot("שלום הדסוש 💙 איך אפשר לעזור?")
+        # פתיח
+        self.add_bot("שלום! איך אפשר לעזור?")
 
         send.clicked.connect(self._send)
         self.input.returnPressed.connect(self._send)
 
-        # סטייל לבועות (אפשר להעביר ל-style_manager)
+        # סטייל לבועות
         self.setStyleSheet(
             """
             QFrame#UserBubble {
@@ -82,7 +78,7 @@ class ConsultView(QWidget):
         bubble = ChatBubble(text, True)
         row = QHBoxLayout()
         row.addStretch(1)
-        row.addWidget(bubble)  # ימין
+        row.addWidget(bubble)
         wrapper = QWidget()
         wrapper.setLayout(row)
         self.chat_layout.insertWidget(self.chat_layout.count() - 1, wrapper)
@@ -104,20 +100,20 @@ class ConsultView(QWidget):
             return
         self.add_user(text)
         self.input.clear()
-        # הוספת "כותב..." זמני
-        self.add_bot("הבוט כותב...")
         asyncio.create_task(self.ask_ai(text))
 
-    async def ask_ai(self, text: str):
+    async def ask_ai(self, question: str):
+        """שולח את השאלה לשרת ומחזיר תשובה אמיתית מה־AI"""
         try:
-            url = f"{os.getenv('GATEWAY_BASE_URL','http://127.0.0.1:9000')}/ai/ask"
-            r = requests.post(url, json={"question": text}, timeout=20)
+            url = "http://127.0.0.1:8000/ai/ask"  # 📌 API של השרת שלך
+            payload = {"question": question}
+            r = requests.post(url, json=payload, timeout=20)
             r.raise_for_status()
             data = r.json()
-            answer = data.get("answer", "❌ לא התקבלה תשובה מהבוט")
-            self.add_bot(answer)
+            answer = data.get("answer", "❌ לא התקבלה תשובה")
         except Exception as e:
-            self.add_bot(f"שגיאה: {e}")
+            answer = f"שגיאה: {e}"
+        self.add_bot(answer)
 
     def _scroll_bottom(self):
         self.scroll.verticalScrollBar().setValue(

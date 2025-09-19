@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     OLLAMA_URL: str = "http://127.0.0.1:11434"
     AI_MODEL: str = "llama3.1"
-    AI_TIMEOUT: int = 15
+    AI_TIMEOUT: int = 35
 
     model_config = SettingsConfigDict(
         env_file=".env",
